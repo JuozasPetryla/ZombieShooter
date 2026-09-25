@@ -1,0 +1,24 @@
+# .NET and MonoGame build output (including compiled content)
+**/bin/
+**/obj/
+
+# Visual Studio and Rider local settings
+.vs/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Test and coverage output
+TestResults/
+*.coverage
+*.coveragexml
+
+# NuGet package output
+*.nupkg
+*.snupkg
+
+# OS metadata
+.DS_Store
+Thumbs.db
