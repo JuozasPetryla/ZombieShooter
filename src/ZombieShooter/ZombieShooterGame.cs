@@ -20,6 +20,7 @@ public sealed class ZombieShooterGame : Game
     private string _notice = "SURVIVE THE HORDE";
     private float _noticeTime = 3;
     private readonly Dictionary<int, PlayerInput> _inputs = [];
+    private IContentFactory _content = new NormalContentFactory();
 
     public ZombieShooterGame()
     {
@@ -40,7 +41,7 @@ public sealed class ZombieShooterGame : Game
     private void Restart()
     {
         if (_session is not null) _session.EventOccurred -= OnGameEvent;
-        _session = new GameSession(_playerCount, Environment.TickCount);
+        _session = new GameSession(_playerCount, Environment.TickCount, content: _content);
         _session.EventOccurred += OnGameEvent;
         _paused = false;
         _notice = _playerCount == 2 ? "LOCAL CO-OP" : "SURVIVE THE HORDE";
@@ -70,12 +71,20 @@ public sealed class ZombieShooterGame : Game
     {
         var keys = Keyboard.GetState();
         var pad = GamePad.GetState(PlayerIndex.One);
+
         bool PadPressed(Buttons button) => pad.IsConnected && _previousPad.IsConnected &&
             pad.IsButtonDown(button) && _previousPad.IsButtonUp(button);
         bool Pressed(Keys key) => keys.IsKeyDown(key) && _previous.IsKeyUp(key);
+
         if (Pressed(Keys.Escape)) Exit();
-        if (Pressed(Keys.F2)) { _playerCount = _playerCount == 1 ? 2 : 1; Restart(); }
-        else if (Pressed(Keys.R)) Restart();
+        if (Pressed(Keys.F2)) {
+            _playerCount = _playerCount == 1 ? 2 : 1;
+            Restart();
+        } else if (Pressed(Keys.F3)) {
+            _content = _content is NormalContentFactory ? new NightmareContentFactory() : new NormalContentFactory();
+            Restart();
+        } else if (Pressed(Keys.R)) Restart();
+
         if (Pressed(Keys.P)) _paused = !_paused;
         if (IsActive && !_paused)
         {
@@ -110,6 +119,7 @@ public sealed class ZombieShooterGame : Game
             }
             float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
             _session.Update(dt, _inputs);
+            HighScores.Instance.Submit(_session.Score);
             _noticeTime -= dt;
         }
         _previous = keys;
@@ -185,6 +195,10 @@ public sealed class ZombieShooterGame : Game
             Text(_session.State == SessionState.GameOver ? "GAME OVER" : "PAUSED", 470, 310, Color.White, 5);
             Text(_session.State == SessionState.GameOver ? "R RESTART / F2 CHANGE PLAYERS" : "P RESUME / R RESTART", 420, 380, Color.LightGray, 3);
         }
+
+        Text($"BEST {HighScores.Instance.Best}", 1060, 10, Color.Gold, 2);
+        Text($"MODE {_content.Name}", 1060, 34, Color.LightSlateGray, 2);
+        
         _batch.End();
         base.Draw(gameTime);
     }

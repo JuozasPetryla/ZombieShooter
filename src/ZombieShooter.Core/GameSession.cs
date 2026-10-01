@@ -8,7 +8,7 @@ public sealed class GameSession
 {
     public const float Width = 1280;
     public const float Height = 720;
-    private readonly EntityFactory _factory = new();
+    private readonly EntityFactory _factory;
     private readonly Random _random;
     private readonly IGameMode _mode;
     private readonly List<Player> _players = [];
@@ -31,11 +31,13 @@ public sealed class GameSession
     // Observer: consumers subscribe for UI/audio; combat knows nothing about presentation.
     public event Action<GameEvent>? EventOccurred;
 
-    public GameSession(int playerCount = 1, int seed = 1, IGameMode? mode = null)
+    public GameSession(int playerCount = 1, int seed = 1, IGameMode? mode = null, IContentFactory? content = null)
     {
         if (playerCount is < 1 or > 2) throw new ArgumentOutOfRangeException(nameof(playerCount));
+        content ??= new NormalContentFactory();
+        _factory = content.CreateEntityFactory();
+        _mode = mode ?? content.CreateGameMode();
         _random = new Random(seed);
-        _mode = mode ?? new SurvivalMode();
         for (int i = 0; i < playerCount; i++)
             _players.Add(_factory.CreatePlayer(new Vector2(Width / 2 + i * 50, Height / 2)));
         Players = _players.AsReadOnly();

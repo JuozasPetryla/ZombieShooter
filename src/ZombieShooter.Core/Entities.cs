@@ -59,20 +59,24 @@ public sealed class Pickup(int id, Vector2 position, PickupKind kind) : Entity(i
 }
 
 // Factory centralizes identities and construction; it belongs to one session.
-public sealed class EntityFactory
+public class EntityFactory
 {
     private int _nextId;
     public Player CreatePlayer(Vector2 position) => new(++_nextId, position);
+
     public Zombie CreateZombie(Vector2 position, ZombieKind kind, int wave)
     {
-        var (health, speed) = kind switch
-        {
-            ZombieKind.Runner => (35, 125f),
-            ZombieKind.Brute => (150, 48f),
-            _ => (60, 70f)
-        };
+        var (health, speed) = ZombieStats(kind);
         return new(++_nextId, position, kind, health + (wave - 1) * 5, speed + Math.Min(wave - 1, 20) * 2);
     }
+
+    protected virtual (int Health, float Speed) ZombieStats(ZombieKind kind) => kind switch
+    {
+        ZombieKind.Runner => (35, 125f),
+        ZombieKind.Brute => (150, 48f),
+        _ => (60, 70f)
+    };
+
     public Bullet CreateBullet(Vector2 position, Vector2 direction, int ownerId, int damage)
         => new(++_nextId, position, direction * 650, ownerId, damage);
     public Pickup CreatePickup(Vector2 position, PickupKind kind) => new(++_nextId, position, kind);

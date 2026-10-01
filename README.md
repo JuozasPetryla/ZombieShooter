@@ -17,6 +17,11 @@ dotnet build ZombieShooter.sln --no-restore
 dotnet run --project src/ZombieShooter --no-build
 ```
 
+If the aiming does not work and is locked at a certain angle run this command
+```sh
+SDL_VIDEODRIVER=x11 dotnet run --project src/ZombieShooter --no-build
+```
+
 Run the headless regression checks without opening a window:
 
 ```sh

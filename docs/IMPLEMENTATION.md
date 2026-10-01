@@ -14,9 +14,9 @@
 
 | Pattern | Status | Location and role |
 | --- | --- | --- |
-| 01 Singleton | Not implemented | Each match owns its state; no global mutable session. |
+| 01 Singleton | Implemented | [HighScores](../src/ZombieShooter/HighScores.cs) keeps the best score across restarts in the host; matches still own their own state. |
 | 02 Factory | Implemented as Simple Factory | [EntityFactory](../src/ZombieShooter.Core/Entities.cs) creates entities, assigns IDs, configures zombie stats. This is not GoF Factory Method. |
-| 03 Abstract Factory | Not implemented | Could create matching content families for themes. |
+| 03 Abstract Factory | Implemented | [IContentFactory](../src/ZombieShooter.Core/ContentFactories.cs) creates matching EntityFactory + IGameMode families (Normal, Nightmare); selected by the host with F3 and injected into GameSession. |
 | 04 Strategy | Implemented | [IGameMode / SurvivalMode](../src/ZombieShooter.Core/SurvivalMode.cs) choose wave size, pacing, and composition; injected into GameSession. |
 | 05 Observer | Implemented with C# events | [GameSession](../src/ZombieShooter.Core/GameSession.cs) publishes EventOccurred; [ZombieShooterGame](../src/ZombieShooter/ZombieShooterGame.cs) subscribes for HUD notices. |
 | 06 Builder | Not implemented | Possible future configurable matches/loadouts. |
