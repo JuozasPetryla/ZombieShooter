@@ -1,4 +1,4 @@
-﻿
+
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
@@ -6,6 +6,12 @@ MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{17C9F59C-EA02-436B-937B-960A4E9F1C8B}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ZombieShooter", "src\ZombieShooter\ZombieShooter.csproj", "{809028A3-29F5-414C-AA66-394FD5920F44}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ZombieShooter.Core", "src\ZombieShooter.Core\ZombieShooter.Core.csproj", "{498C8E25-14DE-4ADC-BE8B-7C2A123B2108}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{D7DBA30A-4C56-49D0-B3DA-89FB6393C851}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ZombieShooter.Core.Tests", "tests\ZombieShooter.Core.Tests\ZombieShooter.Core.Tests.csproj", "{995A65E0-C17E-495B-A29A-C4C4033260BD}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -20,8 +26,18 @@ Global
 		{809028A3-29F5-414C-AA66-394FD5920F44}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{809028A3-29F5-414C-AA66-394FD5920F44}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{809028A3-29F5-414C-AA66-394FD5920F44}.Release|Any CPU.Build.0 = Release|Any CPU
+		{498C8E25-14DE-4ADC-BE8B-7C2A123B2108}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{498C8E25-14DE-4ADC-BE8B-7C2A123B2108}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{498C8E25-14DE-4ADC-BE8B-7C2A123B2108}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{498C8E25-14DE-4ADC-BE8B-7C2A123B2108}.Release|Any CPU.Build.0 = Release|Any CPU
+		{995A65E0-C17E-495B-A29A-C4C4033260BD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{995A65E0-C17E-495B-A29A-C4C4033260BD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{995A65E0-C17E-495B-A29A-C4C4033260BD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{995A65E0-C17E-495B-A29A-C4C4033260BD}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{809028A3-29F5-414C-AA66-394FD5920F44} = {17C9F59C-EA02-436B-937B-960A4E9F1C8B}
+		{498C8E25-14DE-4ADC-BE8B-7C2A123B2108} = {17C9F59C-EA02-436B-937B-960A4E9F1C8B}
+		{995A65E0-C17E-495B-A29A-C4C4033260BD} = {D7DBA30A-4C56-49D0-B3DA-89FB6393C851}
 	EndGlobalSection
 EndGlobal
