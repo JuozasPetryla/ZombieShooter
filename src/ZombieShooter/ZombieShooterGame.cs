@@ -54,6 +54,7 @@ public sealed class ZombieShooterGame : Game
         {
             "WaveStarted" => $"WAVE {message.Value}",
             "WaveCleared" => "WAVE CLEARED",
+            "WeaponsUpgraded" => "WEAPONS UPGRADED",
             "PickupCollected" => message.Value == (int)PickupKind.Health ? "HEALTH +35" : "SHOTGUN 15 SECONDS",
             _ => null
         };

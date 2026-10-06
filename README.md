@@ -74,15 +74,23 @@ not an implementation checklist.
 | 03 Abstract Factory | Defer until modes/themes need matching families of enemies, weapons, and pickups. A single family does not yet justify it. |
 | 04 Strategy | `IGameMode` and `SurvivalMode` define wave size, composition, and pacing; `GameSession` accepts a replacement strategy. |
 | 05 Observer | `GameSession.EventOccurred` publishes combat and wave events. The MonoGame HUD subscribes without adding rendering dependencies to the core. |
+| 06 Builder | `ZombieBuilder` constructs configurable `ZombieArchetype` instances step by step. `ZombieDirector` provides reusable presets for walkers, runners, and brutes, while validation in Build() prevents invalid configurations.
+| 07 Prototype | `IPrototype<T>`, `ZombieArchetype`, and `AttackProfile` provide cloning of existing templates. `ArchetypeRegistry` stores zombie prototypes and returns clones when new zombies are created, allowing wave-specific tuning without modifying the registered templates.
+| 08 Decorator | `WeaponDecorator` wraps `IWeapon` implementations to add weapon upgrades without modifying the original weapon classes. `DamageBonus`, `FireRateBonus`, and `MagazineSizeBonus` provide composable damage, fire-rate, and magazine-size modifications.
 | 09 Command | `IGameCommand`, `ReloadCommand`, and `SelectWeaponCommand` queue discrete actions; `GameSession` validates and executes them in FIFO order on the next tick. |
 
 See [implementation status and pattern locations](docs/IMPLEMENTATION.md) for the
 complete pattern inventory, Command participants, execution rules, and limitations.
 
-Builder and Prototype become useful for configurable loadouts or content-defined
-enemy templates. Decorator can represent stackable item effects when those rules
-exist. Command currently handles local queued actions; timestamped input, replays,
-and network transport are not implemented.
+Builder is used for flexible construction of zombie archetypes with optional
+configuration and validation. Prototype provides reusable zombie templates that
+can be cloned and modified for individual spawns. Decorator allows weapon
+properties to be upgraded by wrapping existing IWeapon instances, so multiple
+bonuses can be combined without changing the base weapon implementations,
+later  stackable item effects can be added.
+
+Command currently handles local queued actions; timestamped input, replays, and
+network transport are not implemented.
 
 ## Architecture and future work
 

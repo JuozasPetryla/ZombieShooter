@@ -25,22 +25,27 @@ public sealed class Player(int id, Vector2 position) : Entity(id, position, 15)
     public Vector2 Aim { get; internal set; } = Vector2.UnitX;
     public WeaponKind Weapon { get; internal set; }
     public float WeaponTime { get; internal set; }
+    public IWeapon PistolGear {get; internal set; } = new Pistol();
+    public IWeapon ShotgunGear {get; internal set; } = new Shotgun();
+    public IWeapon Gear => Weapon == WeaponKind.Pistol ? PistolGear : ShotgunGear;
     public int PistolAmmo { get; internal set; } = 12;
     public int ShotgunAmmo { get; internal set; } = 6;
     public int Ammo => Weapon == WeaponKind.Pistol ? PistolAmmo : ShotgunAmmo;
-    public int MagazineSize => Weapon == WeaponKind.Pistol ? 12 : 6;
+    public int MagazineSize => Gear.MagazineSize;
     public float ReloadRemaining { get; internal set; }
     public bool IsReloading => ReloadRemaining > 0;
     internal float FireCooldown;
     internal float HurtCooldown;
 }
 
-public sealed class Zombie(int id, Vector2 position, ZombieKind kind, int health, float speed)
-    : Entity(id, position, kind == ZombieKind.Brute ? 22 : 14)
+public sealed class Zombie(int id, Vector2 position, ZombieArchetype archetype)
+    : Entity(id, position, archetype.Radius)
 {
-    public ZombieKind Kind { get; } = kind;
-    public int Health { get; internal set; } = health;
-    public float Speed { get; } = speed;
+    public ZombieKind Kind { get; } = archetype.Kind;
+    public int Health { get; internal set; } = archetype.Health;
+    public float Speed { get; } = archetype.Speed;
+    public AttackProfile Attack { get; } = archetype.Attack;
+    public int XpReward { get; } = archetype.XpReward;
 }
 
 public sealed class Bullet(int id, Vector2 position, Vector2 velocity, int ownerId, int damage)
@@ -62,20 +67,26 @@ public sealed class Pickup(int id, Vector2 position, PickupKind kind) : Entity(i
 public class EntityFactory
 {
     private int _nextId;
+    private readonly ArchetypeRegistry _registry = new();
+
+    public EntityFactory()
+    {
+        _registry.Register(ZombieDirector.Walker());
+        _registry.Register(ZombieDirector.Runner());
+        _registry.Register(ZombieDirector.Brute());
+    }
     public Player CreatePlayer(Vector2 position) => new(++_nextId, position);
 
     public Zombie CreateZombie(Vector2 position, ZombieKind kind, int wave)
     {
-        var (health, speed) = ZombieStats(kind);
-        return new(++_nextId, position, kind, health + (wave - 1) * 5, speed + Math.Min(wave - 1, 20) * 2);
+        var archetype = _registry.Get(kind);
+        Tune(archetype);
+        archetype.Health += (wave - 1) * 5;
+        archetype.Speed += Math.Min(wave - 1, 20) * 2;
+        return new(++_nextId, position, archetype);
     }
 
-    protected virtual (int Health, float Speed) ZombieStats(ZombieKind kind) => kind switch
-    {
-        ZombieKind.Runner => (35, 125f),
-        ZombieKind.Brute => (150, 48f),
-        _ => (60, 70f)
-    };
+    protected virtual void Tune(ZombieArchetype archetype) { } // Hook for subclasses to modify archetypes
 
     public Bullet CreateBullet(Vector2 position, Vector2 direction, int ownerId, int damage)
         => new(++_nextId, position, direction * 650, ownerId, damage);

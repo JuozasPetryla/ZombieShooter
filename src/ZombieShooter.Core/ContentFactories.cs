@@ -24,10 +24,10 @@ public sealed class NightmareContentFactory : IContentFactory
 
 public sealed class NightmareEntityFactory : EntityFactory
 {
-    protected override (int Health, float Speed) ZombieStats(ZombieKind kind)
+    protected override void Tune(ZombieArchetype archetype)
     {
-        var (health, speed) = base.ZombieStats(kind);
-        return ((int)(health * 1.5f), speed * 1.25f);
+        archetype.Health = (int)(archetype.Health * 1.5f);
+        archetype.Speed *= 1.25f;
     }
 }
 

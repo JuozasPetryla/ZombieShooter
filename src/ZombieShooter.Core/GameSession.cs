@@ -62,7 +62,7 @@ public sealed class GameSession
         var player = _players.Find(p => p.Id == playerId);
         if (State == SessionState.GameOver || player is null || !player.IsAlive ||
             player.IsReloading || player.Ammo == player.MagazineSize) return false;
-        player.ReloadRemaining = player.Weapon == WeaponKind.Pistol ? 1.2f : 1.8f;
+        player.ReloadRemaining = player.Gear.ReloadTime;
         EventOccurred?.Invoke(new("ReloadStarted", player.Id));
         return true;
     }
@@ -152,6 +152,10 @@ public sealed class GameSession
         {
             State = SessionState.Intermission;
             IntermissionRemaining = _mode.IntermissionSeconds;
+            // Upgrade surviving players' weapons at wave boundaries.
+            foreach (var player in _players.Where(p => p.IsAlive)) UpgradeWeapons(player);
+            EventOccurred?.Invoke(new("WaveCleared", Value: Wave));
+            EventOccurred?.Invoke(new("WeaponsUpgraded", Value: Wave));
             // Co-op players return at wave boundaries if their teammate survives.
             foreach (var player in _players.Where(p => !p.IsAlive))
             {
@@ -176,15 +180,15 @@ public sealed class GameSession
 
     private void Fire(Player player)
     {
-        bool shotgun = player.Weapon == WeaponKind.Shotgun;
-        if (shotgun) player.ShotgunAmmo--;
+        var gear = player.Gear;
+        if (player.Weapon == WeaponKind.Shotgun) player.ShotgunAmmo--;
         else player.PistolAmmo--;
-        for (int i = shotgun ? -2 : 0; i <= (shotgun ? 2 : 0); i++)
+        for (int i = gear.Pellets > 1 ? -2 : 0; i <= (gear.Pellets > 1 ? 2 : 0); i++)
         {
             var direction = Vector2.Transform(player.Aim, Matrix3x2.CreateRotation(i * 0.12f));
-            _bullets.Add(_factory.CreateBullet(player.Position + player.Aim * 20, direction, player.Id, shotgun ? 25 : 35));
+            _bullets.Add(_factory.CreateBullet(player.Position + player.Aim * 20, direction, player.Id, gear.Damage));
         }
-        player.FireCooldown = shotgun ? 0.5f : 0.18f;
+        player.FireCooldown = gear.FireCooldown;
         EventOccurred?.Invoke(new("ShotFired", player.Id));
     }
 
@@ -213,8 +217,8 @@ public sealed class GameSession
             foreach (var player in _players.Where(p => p.IsAlive))
             {
                 if (Vector2.Distance(player.Position, zombie.Position) > player.Radius + zombie.Radius || player.HurtCooldown > 0) continue;
-                player.Health = Math.Max(0, player.Health - 10);
-                player.HurtCooldown = 0.65f;
+                player.Health = Math.Max(0, player.Health - zombie.Attack.Damage);
+                player.HurtCooldown = zombie.Attack.Cooldown;
                 EventOccurred?.Invoke(new("PlayerHurt", player.Id, player.Health));
             }
         }
@@ -274,7 +278,7 @@ public sealed class GameSession
                     player.ReloadRemaining = 0;
                     player.Weapon = WeaponKind.Shotgun;
                     player.WeaponTime = 15;
-                    player.ShotgunAmmo = 6;
+                    player.ShotgunAmmo = player.ShotgunGear.MagazineSize;
                 }
                 pickup.Lifetime = 0;
                 EventOccurred?.Invoke(new("PickupCollected", player.Id, (int)pickup.Kind));
@@ -282,5 +286,11 @@ public sealed class GameSession
             }
         }
         _pickups.RemoveAll(p => p.Lifetime <= 0);
+    }
+
+    private static void UpgradeWeapons(Player player)
+    {
+        player.PistolGear = new FireRateBonus(new DamageBonus(player.PistolGear, 5), 0.95f);
+        player.ShotgunGear = new FireRateBonus(new DamageBonus(player.ShotgunGear, 3), 0.95f);
     }
 }
