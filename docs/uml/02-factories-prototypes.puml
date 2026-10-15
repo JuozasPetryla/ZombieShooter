@@ -1,0 +1,211 @@
+@startuml
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+package "Core" {
+  interface "IContentFactory" as Core_IContentFactory {
+    +string Name
+    +CreateEntityFactory() EntityFactory
+    +CreateGameMode() IGameMode
+    +CreateDropPolicy() IDropPolicy
+  }
+  class "NormalContentFactory" as Core_NormalContentFactory {
+    +string Name
+    +CreateEntityFactory() EntityFactory
+    +CreateGameMode() IGameMode
+    +CreateDropPolicy() IDropPolicy
+  }
+  class "NightmareContentFactory" as Core_NightmareContentFactory {
+    +string Name
+    +CreateEntityFactory() EntityFactory
+    +CreateGameMode() IGameMode
+    +CreateDropPolicy() IDropPolicy
+  }
+  class "EntityFactory" as Core_EntityFactory {
+    -int nextId
+    -ArchetypeRegistry registry
+    +CreatePlayer(position) Player
+    +CreateZombie(position, kind, wave) Zombie
+    +CreateBullet(position, direction, owner, damage) Bullet
+    +CreatePickup(position, kind) Pickup
+  }
+  class "NightmareEntityFactory" as Core_NightmareEntityFactory {
+    +NightmareEntityFactory()
+  }
+  interface "IDropPolicy" as Core_IDropPolicy {
+    +Roll(random) PickupKind?
+  }
+  class "NormalDropPolicy" as Core_NormalDropPolicy {
+    +Roll(random) PickupKind?
+  }
+  class "NightmareDropPolicy" as Core_NightmareDropPolicy {
+    +Roll(random) PickupKind?
+  }
+  interface "IGameMode" as Core_IGameMode {
+    +float IntermissionSeconds
+    +EnemyCount(wave, players) int
+    +SpawnInterval(wave) float
+    +ChooseZombie(wave, random) ZombieKind
+  }
+  class "SurvivalMode" as Core_SurvivalMode {
+    +float IntermissionSeconds
+    +EnemyCount(wave, players) int
+    +SpawnInterval(wave) float
+    +ChooseZombie(wave, random) ZombieKind
+  }
+  class "NightmareMode" as Core_NightmareMode {
+    +float IntermissionSeconds
+    +EnemyCount(wave, players) int
+    +SpawnInterval(wave) float
+    +ChooseZombie(wave, random) ZombieKind
+  }
+  class "HordeMode" as Core_HordeMode {
+    +float IntermissionSeconds
+    +EnemyCount(wave, players) int
+    +SpawnInterval(wave) float
+    +ChooseZombie(wave, random) ZombieKind
+  }
+  class "BruteMode" as Core_BruteMode {
+    +float IntermissionSeconds
+    +EnemyCount(wave, players) int
+    +SpawnInterval(wave) float
+    +ChooseZombie(wave, random) ZombieKind
+  }
+  abstract class "ZombieCreator" as Core_ZombieCreator {
+    +Create(id, position, archetype) Zombie
+    {abstract} #CreateProduct(id, position, archetype) Zombie
+  }
+  class "WalkerCreator" as Core_WalkerCreator {
+    #CreateProduct(id, position, archetype) Zombie
+  }
+  class "RunnerCreator" as Core_RunnerCreator {
+    #CreateProduct(id, position, archetype) Zombie
+  }
+  class "BruteCreator" as Core_BruteCreator {
+    #CreateProduct(id, position, archetype) Zombie
+  }
+  abstract class "Entity" as Core_Entity {
+    +int Id
+    +Vector2 Position
+    +float Radius
+  }
+  class "Bullet" as Core_Bullet {
+    +Vector2 Velocity
+    +int OwnerId
+    +int Damage
+    +float Lifetime
+    +Bullet(id, position, velocity, ownerId, damage)
+  }
+  class "Pickup" as Core_Pickup {
+    +PickupKind Kind
+    +float Lifetime
+    +Pickup(id, position, kind)
+  }
+  class "Zombie" as Core_Zombie {
+    +ZombieKind Kind
+    +int Health
+    +float Speed
+    +AttackProfile Attack
+    +int XpReward
+  }
+  class "Walker" as Core_Walker {
+    +Walker(id, position, archetype)
+  }
+  class "Runner" as Core_Runner {
+    +Runner(id, position, archetype)
+  }
+  class "Brute" as Core_Brute {
+    +Brute(id, position, archetype)
+  }
+  abstract class "ZombieBuilder" as Core_ZombieBuilder {
+    -ZombieKind kind
+    -int health
+    -float speed
+    -float radius
+    -int xpReward
+    -int attackDamage
+    -float attackCooldown
+    +OfKind(kind) ZombieBuilder
+    +WithHealth(health) ZombieBuilder
+    +WithSpeed(speed) ZombieBuilder
+    +WithRadius(radius) ZombieBuilder
+    +WithXpReward(reward) ZombieBuilder
+    +WithAttack(damage, cooldown) ZombieBuilder
+    +Build() ZombieArchetype
+  }
+  class "StandardZombieBuilder" as Core_StandardZombieBuilder {
+    +StandardZombieBuilder()
+  }
+  class "ArmoredZombieBuilder" as Core_ArmoredZombieBuilder {
+    +Build() ZombieArchetype
+  }
+  class "ZombieDirector" as Core_ZombieDirector {
+    <<static>>
+    {static} +Walker(builder) ZombieArchetype
+    {static} +Runner(builder) ZombieArchetype
+    {static} +Brute(builder) ZombieArchetype
+  }
+  interface "IPrototype<T>" as Core_IPrototype {
+    +Clone() T
+  }
+  class "ZombieArchetype" as Core_ZombieArchetype {
+    +ZombieKind Kind
+    +int Health
+    +float Speed
+    +float Radius
+    +int XpReward
+    +AttackProfile Attack
+    +Clone() ZombieArchetype
+    +ShallowClone() ZombieArchetype
+  }
+  class "AttackProfile" as Core_AttackProfile {
+    +int Damage
+    +float Cooldown
+    +Clone() AttackProfile
+  }
+  class "ArchetypeRegistry" as Core_ArchetypeRegistry {
+    -Dictionary templates
+    +Register(archetype) void
+    +Get(kind) ZombieArchetype
+  }
+}
+Core_IContentFactory <|.. Core_NormalContentFactory
+Core_IContentFactory <|.. Core_NightmareContentFactory
+Core_NormalContentFactory ..> Core_EntityFactory : creates
+Core_NormalContentFactory ..> Core_SurvivalMode : creates
+Core_NormalContentFactory ..> Core_NormalDropPolicy : creates
+Core_NightmareContentFactory ..> Core_NightmareEntityFactory : creates
+Core_NightmareContentFactory ..> Core_NightmareMode : creates
+Core_NightmareContentFactory ..> Core_NightmareDropPolicy : creates
+Core_EntityFactory <|-- Core_NightmareEntityFactory
+Core_IDropPolicy <|.. Core_NormalDropPolicy
+Core_IDropPolicy <|.. Core_NightmareDropPolicy
+Core_IGameMode <|.. Core_SurvivalMode
+Core_IGameMode <|.. Core_NightmareMode
+Core_IGameMode <|.. Core_HordeMode
+Core_IGameMode <|.. Core_BruteMode
+Core_ZombieCreator <|-- Core_WalkerCreator
+Core_ZombieCreator <|-- Core_RunnerCreator
+Core_ZombieCreator <|-- Core_BruteCreator
+Core_WalkerCreator ..> Core_Walker : creates
+Core_RunnerCreator ..> Core_Runner : creates
+Core_BruteCreator ..> Core_Brute : creates
+Core_Entity <|-- Core_Zombie
+Core_Entity <|-- Core_Bullet
+Core_Entity <|-- Core_Pickup
+Core_Zombie --> "1" Core_AttackProfile : Attack
+Core_Zombie <|-- Core_Walker
+Core_Zombie <|-- Core_Runner
+Core_Zombie <|-- Core_Brute
+Core_EntityFactory --> "3" Core_ZombieCreator : static ZombieCreators
+Core_EntityFactory *-- Core_ArchetypeRegistry
+Core_EntityFactory ..> Core_ZombieDirector
+Core_ZombieBuilder <|-- Core_StandardZombieBuilder
+Core_ZombieBuilder <|-- Core_ArmoredZombieBuilder
+Core_ZombieDirector ..> Core_ZombieBuilder
+Core_NightmareEntityFactory ..> Core_ArmoredZombieBuilder
+Core_IPrototype <|.. Core_ZombieArchetype : T = ZombieArchetype
+Core_IPrototype <|.. Core_AttackProfile : T = AttackProfile
+Core_ZombieArchetype "0..*" --> "1" Core_AttackProfile : Attack
+Core_ArchetypeRegistry --> "0..*" Core_ZombieArchetype : templates
+Core_ZombieBuilder ..> Core_ZombieArchetype : builds
+@enduml

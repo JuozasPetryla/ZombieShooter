@@ -1,0 +1,61 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+actor "Žaidėjas" as Player <<abstract>>
+actor "Vietinis žaidėjas" as Local
+actor "Tinklo žaidėjas" as Remote
+actor "Serverio operatorius" as Operator
+Player <|-- Local
+Player <|-- Remote
+rectangle "Zombie Shooter (klientai ir serveris)" {
+  usecase "Judėti arenoje" as Move
+  usecase "Taikytis" as Aim
+  usecase "Šaudyti" as Fire
+  usecase "Perkrauti ginklą" as Reload
+  usecase "Pasirinkti ginklą" as SelectWeapon
+  usecase "Atšaukti paskutinę komandą" as Undo
+  usecase "Surinkti daiktą" as Pickup
+  usecase "Peržiūrėti žaidimo būseną" as Status
+  usecase "Išeiti iš žaidimo" as Exit
+  usecase "Pradėti naują vietinę sesiją" as NewSession
+  usecase "Pakeisti vietinių žaidėjų skaičių" as Players
+  usecase "Pakeisti turinio šeimą" as Family
+  usecase "Pakeisti bangų strategiją" as Mode
+  usecase "Pristabdyti vietinę sesiją" as Pause
+  usecase "Tęsti vietinę sesiją" as Resume
+  usecase "Prisijungti prie serverio" as Join
+  usecase "Paleisti serverį" as StartServer
+  usecase "Sustabdyti serverį" as StopServer
+}
+Player -- Move
+Player -- Aim
+Player -- Fire
+Player -- Reload
+Player -- SelectWeapon
+Player -- Undo
+Player -- Pickup
+Player -- Status
+Player -- Exit
+Local -- NewSession
+Local -- Players
+Local -- Family
+Local -- Mode
+Local -- Pause
+Local -- Resume
+Remote -- Join
+Operator -- StartServer
+Operator -- StopServer
+Players ..> NewSession : <<include>>
+Family ..> NewSession : <<include>>
+Mode ..> NewSession : <<include>>
+note bottom of NewSession
+Paleidimas arba R; taip pat visada po F2/F3/F4.
+Vieno žaidėjo ir vietinis bendras žaidimas
+skiriasi pasirinktu žaidėjų skaičiumi.
+end note
+note bottom of Join
+Priskiriama laisva P1 arba P2 vieta.
+Sesija juda tik esant abiem jungtims.
+Pakartotinis prisijungimas yra tas pats atvejis.
+end note
+@enduml

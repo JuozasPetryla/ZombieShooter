@@ -212,50 +212,96 @@ Banga baigiama, kai nelieka nei aktyvių, nei dar turinčių atsirasti priešų.
 
 ## 7. UML Use Case diagrama
 
-Žemiau pateiktas PlantUML šaltinis naudoja UML aktorius ir panaudojimo atvejus. Jei Markdown peržiūra PlantUML nerodo, eksportuoti diagramą į SVG/PNG.
+Kiekvienas panaudojimo atvejis šiame funkciniame vaizde aprašo vieną savarankiškai inicijuojamą žaidėjo arba operatoriaus tikslą. „Perkrauti ginklą“ ir „Pasirinkti ginklą“ atskirti: jie turi skirtingas pradines sąlygas, komandas ir rezultatus. Judėjimas ir taikymasis, pauzė ir nauja sesija, serverio paleidimas ir sustabdymas taip pat yra atskiri atvejai.
+
+Aktorius reiškia **vaidmenį**, ne konkretų žmogų ar P1/P2 vietą. Abu žaidėjai turi tas pačias žaidimo galimybes. „Vietinis žaidėjas“ ir „Tinklo žaidėjas“ paveldi bendro „Žaidėjo“ ryšius; bendras aktorius pažymėtas abstrakčiu. Serveris yra modeliuojamos sistemos viduje, o operatorius – išorinis aktorius.
+
+`«include»` žymi privalomą įtraukiamą elgesį, o ne veiksmų eiliškumą ar bendrą temą. Šioje diagramoje jis naudojamas tik ten, kur F2/F3/F4 pakeitimas **visada** iškviečia `Restart()` ir pradeda naują vietinę sesiją. Žaidimas neprivalo kiekvieną kartą apimti perkrovimo, šaudymo ar daikto surinkimo, todėl jie nėra privalomi „žaisti“ įtraukimai. `«extend»` nenaudojamas: savarankiškai pasiekiamiems veiksmams nereikia išgalvotų plėtimo taškų. Atšaukimas nėra perkrovimo plėtinys – jis vykdomas vėliau ir gali atšaukti ir ginklo pasirinkimą. UML ryšių semantika: [OMG UML 2.5.1, 18 skyrius](https://www.omg.org/spec/UML/2.5.1).
 
 ```plantuml
 @startuml
 left to right direction
-actor "Žaidėjas" as Player
-actor "Antras žaidėjas" as Partner
+skinparam packageStyle rectangle
+actor "Žaidėjas" as Player <<abstract>>
+actor "Vietinis žaidėjas" as Local
+actor "Tinklo žaidėjas" as Remote
 actor "Serverio operatorius" as Operator
-rectangle "Zombie Shooter" {
-  usecase "Žaisti išlikimo sesiją" as Play
-  usecase "Judėti ir taikytis" as Move
+Player <|-- Local
+Player <|-- Remote
+rectangle "Zombie Shooter (klientai ir serveris)" {
+  usecase "Judėti arenoje" as Move
+  usecase "Taikytis" as Aim
   usecase "Šaudyti" as Fire
-  usecase "Perkrauti / parinkti ginklą" as Weapon
+  usecase "Perkrauti ginklą" as Reload
+  usecase "Pasirinkti ginklą" as SelectWeapon
   usecase "Atšaukti paskutinę komandą" as Undo
   usecase "Surinkti daiktą" as Pickup
-  usecase "Įveikti bangą ir gauti patobulinimus" as Wave
-  usecase "Pasirinkti vietinį režimą" as Mode
-  usecase "Pristabdyti / pradėti iš naujo" as Pause
+  usecase "Peržiūrėti žaidimo būseną" as Status
+  usecase "Išeiti iš žaidimo" as Exit
+  usecase "Pradėti naują vietinę sesiją" as NewSession
+  usecase "Pakeisti vietinių žaidėjų skaičių" as Players
+  usecase "Pakeisti turinio šeimą" as Family
+  usecase "Pakeisti bangų strategiją" as Mode
+  usecase "Pristabdyti vietinę sesiją" as Pause
+  usecase "Tęsti vietinę sesiją" as Resume
   usecase "Prisijungti prie serverio" as Join
-  usecase "Žaisti kartu" as Coop
-  usecase "Paleisti / sustabdyti serverį" as Host
+  usecase "Paleisti serverį" as StartServer
+  usecase "Sustabdyti serverį" as StopServer
 }
-Player --> Play
-Player --> Mode
-Player --> Pause
-Player --> Join
-Player --> Coop
-Partner --> Coop
-Partner --> Join
-Operator --> Host
-Play .> Move : <<include>>
-Play .> Fire : <<include>>
-Weapon ..> Play : <<extend>>
-Undo ..> Play : <<extend>>
-Pickup ..> Play : <<extend>>
-Wave ..> Play : <<extend>>
-Coop .> Play : <<include>>
-note right of Pause
-Tik vietinei sesijai.
+Player -- Move
+Player -- Aim
+Player -- Fire
+Player -- Reload
+Player -- SelectWeapon
+Player -- Undo
+Player -- Pickup
+Player -- Status
+Player -- Exit
+Local -- NewSession
+Local -- Players
+Local -- Family
+Local -- Mode
+Local -- Pause
+Local -- Resume
+Remote -- Join
+Operator -- StartServer
+Operator -- StopServer
+Players ..> NewSession : <<include>>
+Family ..> NewSession : <<include>>
+Mode ..> NewSession : <<include>>
+note bottom of NewSession
+Paleidimas arba R; taip pat visada po F2/F3/F4.
+Vieno žaidėjo ir vietinis bendras žaidimas
+skiriasi pasirinktu žaidėjų skaičiumi.
+end note
+note bottom of Join
+Priskiriama laisva P1 arba P2 vieta.
+Sesija juda tik esant abiem jungtims.
+Pakartotinis prisijungimas yra tas pats atvejis.
 end note
 @enduml
 ```
 
+### Pagrindinių atvejų sąlygos ir rezultatai
+
+| Atvejis | Pradinės sąlygos / inicijavimas | Rezultatas ir alternatyva |
+|---|---|---|
+| Perkrauti ginklą | Gyvas žaidėjas, nepilna dėtuvė, perkrovimas nevyksta; E / O / X | Pradedamas pasirinkto ginklo perkrovimas. Netinkamoje būsenoje komanda atmetama. |
+| Pasirinkti ginklą | Gyvas žaidėjas pasirenka kitą turimą ginklą; 1/2, 9/0 arba LB/RB | Parenkamas ginklas ir nutraukiamas vykstantis perkrovimas. Nebeturimas shotgun arba tas pats ginklas atmetamas. |
+| Atšaukti paskutinę komandą | Z / N; yra paskutinė sėkminga komanda ir jos išsaugota būsena tebegalioja | Atkuriamas ankstesnis ginklas / perkrovimo būsena; negaliojantis atšaukimas neatliekamas. |
+| Surinkti daiktą | Gyvas žaidėjas paliečia daiktą | Pritaikomas efektas ir daiktas pašalinamas; gydymas su pilnais HP nesunaudojamas. |
+| Pristabdyti vietinę sesiją | Vietinė sesija vyksta, paspaudžiamas P | Simuliacija sustabdoma. Fokuso praradimas taip pat automatiškai sustabdo vietinę simuliaciją. |
+| Tęsti vietinę sesiją | P panaikina rankinę pauzę ir langas turi fokusą | Vietinė simuliacija vėl vyksta, jei sesija nėra GameOver. |
+| Pradėti naują vietinę sesiją | Programos paleidimas, R arba įtraukiantis F2/F3/F4 atvejis | Sukuriama nauja sesija su pasirinktomis nuostatomis. |
+| Prisijungti prie serverio | Klientas paleidžiamas su `--connect`, serveris pasiekiamas | Priskiriama laisva vieta, gaunama būsena; nėra vietos / nėra serverio → prisijungimas nepavyksta. |
+| Paleisti serverį | Operatorius paleidžia serverio procesą su portu ir režimu | Serveris klausosi ir laukia klientų; užimtas portas neleidžia paleisti. |
+| Sustabdyti serverį | Operatorius paspaudžia Ctrl+C veikiančio serverio terminale | Uždaromos jungtys ir baigiamas serverio procesas. |
+
+Bangos įveikimas, automatiniai ginklų patobulinimai ir partnerio atgaivinimas aprašomi žaidimo taisyklėse bei sekų diagramoje kaip sistemos reakcijos. Jie nėra atskiri žaidėjo pasirenkami valdymo veiksmai. Prisijungimas yra tinklo žaidimo pradinė sąlyga, o ne kiekvieno šūvio `«include»`.
+
 ## 8. Pradinio modelio UML klasių diagrama
+
+**PlantUML versija:** [01-initial-classes.puml](uml/01-initial-classes.puml). Toliau pateiktas kodo blokas yra **Mermaid**; jo negalima paleisti vien pakeitus `classDiagram` į `@startuml`.
 
 Tai **retrospektyviai parengtas pradinio modelio aprašas**, o ne įrodymas, kad diagrama ar tinklinis prototipas buvo pateikti prieš šablonų taikymą. Diagramoje yra 10 klasių, sąsaja ir du paketai. Klasės detalizuotos pagrindiniais atributais ir metodais; objektų duomenys vaizduojami savybėmis.
 
@@ -263,6 +309,7 @@ Tai **retrospektyviai parengtas pradinio modelio aprašas**, o ne įrodymas, kad
 classDiagram
 namespace Core {
   class Entity {
+    <<abstract>>
     +int Id
     +Vector2 Position
     +float Radius
@@ -316,12 +363,13 @@ namespace Core {
 namespace Presentation {
   class ZombieShooterGame {
     -GameSession session
-    +Update(gameTime) void
-    +Draw(gameTime) void
+    #Update(gameTime) void
+    #Draw(gameTime) void
     -Restart() void
   }
   class PixelText {
-    +Draw(batch, pixel, text, position, color, scale) void
+    <<static>>
+    +Draw(batch, pixel, text, position, color, scale) void$
   }
 }
 Entity <|-- Player
@@ -330,20 +378,26 @@ Entity <|-- Bullet
 Entity <|-- Pickup
 IGameMode <|.. SurvivalMode
 GameSession *-- EntityFactory
-GameSession o-- IGameMode
-GameSession *-- Player
-GameSession *-- Zombie
-GameSession *-- Bullet
-GameSession *-- Pickup
+GameSession --> "1" IGameMode : mode
+GameSession "1" *-- "1..2" Player
+GameSession "1" *-- "0..*" Zombie
+GameSession "1" *-- "0..*" Bullet
+GameSession "1" *-- "0..*" Pickup
 ZombieShooterGame *-- GameSession
 ZombieShooterGame ..> PixelText
 ```
 
 ## 9. Išplėsta UML klasių diagrama
 
-Toliau pateiktos susijusios galutinio modelio diagramos sudaro vieną modelį. Jose daugiau nei 20 klasių su atributais / savybėmis ir operacijomis. Paketas Core atitinka biblioteką, Presentation – MonoGame klientą, Networking – `ZombieShooter.Core.Networking` vardų sritį. UML atributai žymi ir C# savybes; pirminio konstruktoriaus priklausomybės rodomos asociacijomis.
+Toliau pateiktos susijusios galutinio modelio diagramos sudaro vieną modelį. Jose daugiau nei 20 klasių su atributais / savybėmis ir operacijomis. Paketai atitinka vardų sritis: Core → `ZombieShooter.Core`, Commands → `ZombieShooter.Core.Commands`, Presentation → `ZombieShooter`, Networking → `ZombieShooter.Core.Networking`. Kiekviena diagrama yra to paties modelio vaizdas; pasikartojantis klasės vardas reiškia tą pačią klasę. Rodyklės į kitame vaizde detalizuotas klases nėra naujos klasės.
+
+Žymėjimas: `+` public, `-` private, `#` protected, `~` UML paketo matomumas (čia apytikriai atvaizduoja C# `internal`, kurio tikroji prieigos riba yra assembly). Mermaid `$` pažymi statinį narį, `*` prie operacijos – abstrakčią operaciją. C# savybės pateikiamos atributų skyriuje; `ActionVersion` yra vidinis laukas. Paveldėti nariai nekartojami, išskyrus sąsajos savybių realizavimą. Konstruktoriaus užfiksuoti parametrai pateikiami kaip loginiai atributai; jų kompiliatoriaus sugeneruoti vardai nenaudojami.
+
+Kompozicija (`*--`) naudojama sesijos valdomiems objektams ir fasado sukurtoms posistemėms. Įterptoms strategijoms, apgaubtiems ginklams, prototipams ir pranešimų išvedimui naudojama paprasta asociacija. Ypač `AttackProfile` nėra išimtinė `ZombieArchetype` dalis: shallow kopijos ir sukurtas Zombie gali dalintis ta pačia nuoroda.
 
 ### 9.1. Gamyklos, strategijos, konstravimas ir kopijavimas
+
+**PlantUML versija:** [02-factories-prototypes.puml](uml/02-factories-prototypes.puml). Toliau pateiktas kodo blokas yra **Mermaid**; jo negalima paleisti vien pakeitus `classDiagram` į `@startuml`.
 
 ```mermaid
 classDiagram
@@ -422,7 +476,7 @@ namespace Core {
   class ZombieCreator {
     <<abstract>>
     +Create(id, position, archetype) Zombie
-    #CreateProduct(id, position, archetype) Zombie
+    #CreateProduct(id, position, archetype) Zombie*
   }
   class WalkerCreator {
     #CreateProduct(id, position, archetype) Zombie
@@ -433,9 +487,25 @@ namespace Core {
   class BruteCreator {
     #CreateProduct(id, position, archetype) Zombie
   }
-  class Zombie {
+  class Entity {
+    <<abstract>>
     +int Id
     +Vector2 Position
+    +float Radius
+  }
+  class Bullet {
+    +Vector2 Velocity
+    +int OwnerId
+    +int Damage
+    +float Lifetime
+    +Bullet(id, position, velocity, ownerId, damage)
+  }
+  class Pickup {
+    +PickupKind Kind
+    +float Lifetime
+    +Pickup(id, position, kind)
+  }
+  class Zombie {
     +ZombieKind Kind
     +int Health
     +float Speed
@@ -453,6 +523,7 @@ namespace Core {
   }
   class ZombieBuilder {
     <<abstract>>
+    -ZombieKind kind
     -int health
     -float speed
     -float radius
@@ -468,15 +539,16 @@ namespace Core {
     +Build() ZombieArchetype
   }
   class StandardZombieBuilder {
-    +Build() ZombieArchetype
+    +StandardZombieBuilder()
   }
   class ArmoredZombieBuilder {
     +Build() ZombieArchetype
   }
   class ZombieDirector {
-    +Walker(builder) ZombieArchetype
-    +Runner(builder) ZombieArchetype
-    +Brute(builder) ZombieArchetype
+    <<static>>
+    +Walker(builder) ZombieArchetype$
+    +Runner(builder) ZombieArchetype$
+    +Brute(builder) ZombieArchetype$
   }
   class IPrototype~T~ {
     <<interface>>
@@ -524,24 +596,30 @@ ZombieCreator <|-- BruteCreator
 WalkerCreator ..> Walker : creates
 RunnerCreator ..> Runner : creates
 BruteCreator ..> Brute : creates
+Entity <|-- Zombie
+Entity <|-- Bullet
+Entity <|-- Pickup
+Zombie --> "1" AttackProfile : Attack
 Zombie <|-- Walker
 Zombie <|-- Runner
 Zombie <|-- Brute
-EntityFactory ..> ZombieCreator
+EntityFactory --> "3" ZombieCreator : static ZombieCreators
 EntityFactory *-- ArchetypeRegistry
 EntityFactory ..> ZombieDirector
 ZombieBuilder <|-- StandardZombieBuilder
 ZombieBuilder <|-- ArmoredZombieBuilder
 ZombieDirector ..> ZombieBuilder
 NightmareEntityFactory ..> ArmoredZombieBuilder
-IPrototype~T~ <|.. ZombieArchetype
-IPrototype~T~ <|.. AttackProfile
-ZombieArchetype *-- AttackProfile
-ArchetypeRegistry o-- ZombieArchetype
+IPrototype~T~ <|.. ZombieArchetype : T = ZombieArchetype
+IPrototype~T~ <|.. AttackProfile : T = AttackProfile
+ZombieArchetype "0..*" --> "1" AttackProfile : Attack
+ArchetypeRegistry --> "0..*" ZombieArchetype : templates
 ZombieBuilder ..> ZombieArchetype : builds
 ```
 
 ### 9.2. Ginklai, komandos, fasadas ir tinklas
+
+**PlantUML versija:** [03-weapons-commands-network.puml](uml/03-weapons-commands-network.puml). Toliau pateiktas kodo blokas yra **Mermaid**; jo negalima paleisti vien pakeitus `classDiagram` į `@startuml`.
 
 ```mermaid
 classDiagram
@@ -556,19 +634,30 @@ namespace Core {
     +float ReloadTime
   }
   class Pistol {
+    +WeaponKind Kind
     +int Damage
+    +float FireCooldown
+    +int Pellets
     +int MagazineSize
+    +float ReloadTime
   }
   class Shotgun {
+    +WeaponKind Kind
     +int Damage
+    +float FireCooldown
+    +int Pellets
     +int MagazineSize
+    +float ReloadTime
   }
   class WeaponDecorator {
     <<abstract>>
     #IWeapon Inner
+    +WeaponKind Kind
     +int Damage
     +float FireCooldown
+    +int Pellets
     +int MagazineSize
+    +float ReloadTime
   }
   class DamageBonus {
     -int bonus
@@ -583,50 +672,28 @@ namespace Core {
     +int MagazineSize
   }
   class Player {
-    +int Id
-    +Vector2 Position
     +int Health
+    +Vector2 Aim
     +WeaponKind Weapon
+    +float WeaponTime
+    +IWeapon PistolGear
+    +IWeapon ShotgunGear
     +IWeapon Gear
     +int PistolAmmo
     +int ShotgunAmmo
+    +int Ammo
+    +int MagazineSize
+    +bool IsAlive
+    +bool IsReloading
     +float ReloadRemaining
     ~long ActionVersion
-  }
-  class IGameCommand {
-    <<interface>>
-    +int PlayerId
-    +Execute(session) bool
-    +Undo(session) bool
-  }
-  class PlayerCommand {
-    <<abstract>>
-    -GameSession receiver
-    -WeaponKind weapon
-    -float reload
-    -long version
-    +Execute(session) bool
-    +Undo(session) bool
-    #Apply(session) bool
-  }
-  class ReloadCommand {
-    #Apply(session) bool
-  }
-  class SelectWeaponCommand {
-    +WeaponKind Weapon
-    #Apply(session) bool
-  }
-  class UndoCommand {
-    +int PlayerId
-    +Execute(session) bool
-    +Undo(session) bool
   }
   class GameSession {
     +int Wave
     +int Score
     +SessionState State
-    +EventOccurred GameEvent
-    -Queue commands
+    +Action~GameEvent~ EventOccurred
+    -Queue~IGameCommand~ commands
     -Dictionary lastCommands
     +Update(dt, inputs) void
     +EnqueueCommand(command) bool
@@ -659,6 +726,37 @@ namespace Core {
     +Tick(dt, inputs) void
   }
 }
+namespace Commands {
+  class IGameCommand {
+    <<interface>>
+    +int PlayerId
+    +Execute(session) bool
+    +Undo(session) bool
+  }
+  class PlayerCommand {
+    <<abstract>>
+    -GameSession receiver
+    -WeaponKind weapon
+    -float reload
+    -long version
+    +int PlayerId
+    +Execute(session) bool
+    +Undo(session) bool
+    #Apply(session) bool*
+  }
+  class ReloadCommand {
+    #Apply(session) bool
+  }
+  class SelectWeaponCommand {
+    +WeaponKind Weapon
+    #Apply(session) bool
+  }
+  class UndoCommand {
+    +int PlayerId
+    +Execute(session) bool
+    +Undo(session) bool
+  }
+}
 namespace Networking {
   class GameServer {
     -TcpListener listener
@@ -673,19 +771,20 @@ namespace Networking {
   }
   class NetworkGameClient {
     -TcpClient client
-    -Queue actions
+    -Queue~NetworkAction~ actions
     +int PlayerId
     +ServerFrame Latest
     +string Error
-    +ConnectAsync(host, port) Task
+    +ConnectAsync(host, port) Task~NetworkGameClient~$
     +SetInput(input) void
     +Queue(action) bool
     +Dispose() void
   }
   class WireProtocol {
-    +int MaximumBytes
-    +WriteAsync(stream, message, cancellation) Task
-    +ReadAsync(stream, cancellation) Task
+    <<static>>
+    +int MaximumBytes$
+    +WriteAsync~T~(stream, message, cancellation) Task$
+    +ReadAsync~T~(stream, cancellation) Task~T~$
   }
 }
 namespace Presentation {
@@ -693,28 +792,37 @@ namespace Presentation {
     -GameFacade facade
     -NetworkGameClient network
     -GameSession session
-    +Update(gameTime) void
-    +Draw(gameTime) void
+    #Update(gameTime) void
+    #Draw(gameTime) void
     -Queue(command) void
     -OnGameEvent(message) void
   }
 }
+Entity <|-- Player
+GameSession --> "1" IGameMode : mode
+GameSession --> "1" IDropPolicy : drops
+GameSession *-- EntityFactory
+GameSession "1" *-- "0..*" Zombie
+GameSession "1" *-- "0..*" Bullet
+GameSession "1" *-- "0..*" Pickup
 IWeapon <|.. Pistol
 IWeapon <|.. Shotgun
 IWeapon <|.. WeaponDecorator
-WeaponDecorator o-- IWeapon : wraps
+WeaponDecorator --> "1" IWeapon : Inner
 WeaponDecorator <|-- DamageBonus
 WeaponDecorator <|-- FireRateBonus
 WeaponDecorator <|-- MagazineSizeBonus
-Player o-- IWeapon
+Player --> "1" IWeapon : PistolGear
+Player --> "1" IWeapon : ShotgunGear
 IGameCommand <|.. PlayerCommand
 IGameCommand <|.. UndoCommand
 PlayerCommand <|-- ReloadCommand
 PlayerCommand <|-- SelectWeaponCommand
 PlayerCommand --> GameSession : receiver
-UndoCommand --> GameSession
-GameSession o-- IGameCommand : queue and last command
-GameSession *-- Player
+UndoCommand ..> GameSession : parameter
+GameSession --> "0..64" IGameCommand : pending commands
+GameSession --> "0..2" IGameCommand : last successful per player
+GameSession "1" *-- "1..2" Player
 GameFacade *-- InputBuffer
 GameFacade *-- CommandDispatcher
 GameFacade *-- MatchSimulation
@@ -729,6 +837,8 @@ GameServer ..> WireProtocol
 ```
 
 ### 9.3. Adapter, Bridge ir Singleton
+
+**PlantUML versija:** [04-adapter-bridge-singleton.puml](uml/04-adapter-bridge-singleton.puml). Toliau pateiktas kodo blokas yra **Mermaid**; jo negalima paleisti vien pakeitus `classDiagram` į `@startuml`.
 
 ```mermaid
 classDiagram
@@ -756,9 +866,9 @@ namespace Presentation {
     +Trigger() float
   }
   class HighScores {
-    -Lazy InstanceHolder
+    -Lazy~HighScores~ InstanceHolder$
     -int best
-    +HighScores Instance
+    +HighScores Instance$
     +int Best
     -HighScores()
     +Submit(score) void
@@ -766,14 +876,14 @@ namespace Presentation {
   class ZombieShooterGame {
     -IPlayerInputSource keyboardInput
     -IPlayerInputSource controllerInput
-    +Update(gameTime) void
+    #Update(gameTime) void
   }
 }
 namespace Core {
   class GameNotification {
     <<abstract>>
     #INotificationOutput Output
-    +Show(message) void
+    +Show(message) void*
   }
   class WaveNotification {
     +Show(message) void
@@ -799,8 +909,13 @@ KeyboardMouseAdapter --> KeyboardMouseDevice : adaptee
 ControllerAdapter --> ControllerDevice : adaptee
 ZombieShooterGame --> IPlayerInputSource
 ZombieShooterGame --> HighScores
-ZombieShooterGame --> GameNotification
-GameNotification o-- INotificationOutput : bridge
+ZombieShooterGame --> WaveNotification
+ZombieShooterGame --> PickupNotification
+ZombieShooterGame ..> HudNotificationOutput : creates
+GameServer ..> WaveNotification
+GameServer ..> PickupNotification
+GameServer ..> ConsoleNotificationOutput : creates
+GameNotification --> "1" INotificationOutput : Output
 GameNotification <|-- WaveNotification
 GameNotification <|-- PickupNotification
 INotificationOutput <|.. HudNotificationOutput
@@ -809,61 +924,150 @@ INotificationOutput <|.. ConsoleNotificationOutput
 
 ## 10. Observer sekų diagrama
 
+Diagrama rodo vietinės sesijos sėkmingą bangos pabaigos scenarijų. `EventOccurred` yra sinchroninis C# įvykis: kviečiami prenumeratoriai, o ne siunčiamas asinchroninis atsakymas. Fasado įvykių kaupimo prenumeratorius registruojamas prieš žaidimo HUD prenumeratorių. `HUD` nėra atskiras kodo objektas – piešimą atlieka `ZombieShooterGame.Draw()` ir `PixelText`.
+
 ```mermaid
 sequenceDiagram
-    participant Host as ZombieShooterGame
-    participant Facade as GameFacade
-    participant Session as GameSession
-    participant Notice as WaveNotification
-    participant Output as HudNotificationOutput
-    participant Screen as HUD
+    participant Host as host:ZombieShooterGame
+    participant Facade as facade:GameFacade
+    participant Simulation as simulation:MatchSimulation
+    participant Session as session:GameSession
+    participant Notice as notice:WaveNotification
+    participant Output as output:HudNotificationOutput
+    participant Text as PixelText (static)
+    Note over Facade,Session: GameFacade konstruktorius pirmas prenumeruoja įvykių kaupimo lambda
     Host->>Session: EventOccurred += OnGameEvent
     Host->>Facade: Tick(dt)
-    Facade->>Session: Update(dt, inputs)
-    Session->>Session: Pašalinti žuvusius priešus
-    alt Banga baigta ir bent vienas žaidėjas gyvas
-        Session->>Session: State = Intermission
-        Session->>Session: UpgradeWeapons()
-        Session-->>Host: EventOccurred(WaveCleared)
+    Facade->>Simulation: Tick(dt, InputBuffer.Values)
+    Simulation->>Session: Update(dt, inputs)
+    activate Session
+    Session->>Session: UpdateBullets(dt), UpdatePickups(dt)
+    opt State = Active, EnemiesRemaining = 0 ir yra gyvas žaidėjas
+        Session->>Session: State = Intermission, nustatyti pertrauką
+        loop Kiekvienas gyvas žaidėjas
+            Session->>Session: UpgradeWeapons(player)
+        end
+        Session->>Facade: EventOccurred prenumeratorius (WaveCleared)
+        Facade->>Facade: Priskirti seką, įrašyti į ribotą events eilę
+        Facade-->>Session: return
+        Session->>Host: OnGameEvent(WaveCleared)
         Host->>Notice: Show(WaveCleared)
         Notice->>Output: Write("WAVE CLEARED")
-        Output-->>Host: display(text)
-        Session-->>Host: EventOccurred(WeaponsUpgraded)
+        Output->>Host: display(text) lambda
+        Host->>Host: Nustatyti notice ir noticeTime
+        Host-->>Output: return
+        Output-->>Notice: return
+        Notice-->>Host: return
+        Host-->>Session: return
+        Session->>Facade: EventOccurred prenumeratorius (WeaponsUpgraded)
+        Facade->>Facade: Priskirti seką, įrašyti į ribotą events eilę
+        Facade-->>Session: return
+        Session->>Host: OnGameEvent(WeaponsUpgraded)
         Host->>Notice: Show(WeaponsUpgraded)
         Notice->>Output: Write("WEAPONS UPGRADED")
-        Output-->>Host: display(text)
-        Session->>Session: Atgaivinti žuvusį partnerį
+        Output->>Host: display(text) lambda
+        Host->>Host: Nustatyti notice ir noticeTime
+        Host-->>Output: return
+        Output-->>Notice: return
+        Notice-->>Host: return
+        Host-->>Session: return
+        loop Kiekvienas žuvęs partneris
+            Session->>Session: Health = 50, centrinė padėtis, HurtCooldown = 2
+        end
     end
-    Host->>Screen: Draw naujausią pranešimą
-    Host->>Session: EventOccurred -= OnGameEvent (restart / exit)
+    Session-->>Simulation: return
+    deactivate Session
+    Simulation-->>Facade: return
+    Facade-->>Host: return
+    Note over Host,Text: Vėlesnis MonoGame Draw kvietimas
+    Host->>Host: Draw(gameTime)
+    Host->>Text: Draw(..., notice, ...)
+    Note over Host,Session: Keičiant sesiją arba uždarant žaidimą
+    Host->>Session: EventOccurred -= OnGameEvent
 ```
+
 
 `GameSession` nepriklauso nuo MonoGame. Serveryje tie patys įvykiai nukreipiami į konsolę. Fasadas papildomai saugo 128 paskutinius įvykius su sekos numeriais; tinklo klientas juos atkuria per `ApplySnapshot`, nepublikuodamas tos pačios sekos pakartotinai.
 
 ## 11. Kliento–serverio architektūra
 
+`ServeAsync` ir `TickAsync` yra nepriklausomos to paties `GameServer` objekto užduotys. Užklausa **neiškviečia** `Tick()`: jos atsakymas gali dar nerodyti ką tik į eilę įdėtos komandos rezultato. Klientai gauna būseną kaip atsakymą į savo užklausą, o ne per serverio spontanišką transliaciją. Toliau `par` vaizduoja nepriklausomus ciklus; prieigą prie fasado serveris serializuoja `_gate` užraktu. `par` bloke parodytas ribotas veikimo fragmentas, o ne ciklų užbaigimas; po jo vaizduojamas P2 atsijungimo scenarijus, kol P1 ir serverio laikmatis tebeveikia.
+
 ```mermaid
 sequenceDiagram
-    participant P1 as Grafinis klientas P1
-    participant P2 as Grafinis klientas P2
-    participant Server as GameServer
-    participant Facade as GameFacade / GameSession
-    P1->>Server: TCP prisijungimas
-    Server-->>P1: PlayerId ir snapshot (laukimas)
-    P2->>Server: TCP prisijungimas
-    Server-->>P2: PlayerId ir snapshot
-    loop Serverio 60 Hz žingsnis, kai abi jungtys aktyvios
-        P1->>Server: Judėjimas, taikymasis, šaudymas, veiksmų kodai
-        P2->>Server: Savo įvestis ir veiksmų kodai
-        Server->>Server: Patikrinti formatą, priskirti jungties žaidėją
-        Server->>Facade: SetInput / Queue / Tick
-        Server-->>P1: Bendra būsena ir įvykiai
-        Server-->>P2: Bendra būsena ir įvykiai
+    participant P1 as client1:NetworkGameClient
+    participant P2 as client2:NetworkGameClient
+    participant Server as server:GameServer
+    participant Facade as facade:GameFacade
+    participant Simulation as simulation:MatchSimulation
+    participant Session as session:GameSession
+    P1-)Server: TCP prisijungimas
+    Server->>Server: Priskirti laisvą vietą
+    Server->>Facade: Snapshot(1)
+    Facade->>Session: CaptureSnapshot(events, 1)
+    Session-->>Facade: snapshot
+    Facade-->>Server: snapshot
+    Server-)P1: ServerFrame(playerId, snapshot)
+    P2-)Server: TCP prisijungimas
+    Server->>Server: Priskirti kitą vietą
+    Server->>Facade: Snapshot(2)
+    Facade->>Session: CaptureSnapshot(events, 2)
+    Session-->>Facade: snapshot
+    Facade-->>Server: snapshot
+    Server-)P2: ServerFrame(playerId, snapshot)
+    par Nepriklausomas P1 užklausų ciklas (ServeAsync)
+        loop P1 užklausų iteracijos šiame fragmente
+            P1-)Server: ClientFrame(move, aim, fire, actions)
+            Server->>Server: Patikrinti kadrą, nustatyti savininko playerId
+            Note over Server,Facade: Tolimesnis būsenos blokas vykdomas su _gate
+            Server->>Facade: SetInput(playerId, input arba default jei laukiama)
+            opt Abi jungtys aktyvios
+                loop Kiekvienas leistinas veiksmas
+                    Server->>Facade: Queue(command)
+                end
+            end
+            Server->>Facade: Snapshot(connectedPlayers)
+            Facade->>Session: CaptureSnapshot(events, connectedPlayers)
+            Session-->>Facade: snapshot
+            Facade-->>Server: snapshot
+            Server-)P1: ServerFrame(playerId, snapshot)
+            Note over P1,Server: Serverio aptarnavimo ciklas palaukia bent 16 ms
+        end
+    and Nepriklausomas P2 užklausų ciklas (ServeAsync)
+        loop P2 užklausų iteracijos šiame fragmente
+            P2-)Server: ClientFrame savo žaidėjui
+            Note over Server,Facade: Ta pati validacija ir SetInput / Queue / Snapshot eiga su _gate
+            Server-)P2: ServerFrame kaip atsakymas į šią užklausą
+        end
+    and Nepriklausomas simuliacijos ciklas (TickAsync)
+        loop PeriodicTimer iteracijos šiame fragmente, apie 60 Hz
+            Note over Server,Session: Visas šio žingsnio būsenos blokas vykdomas su _gate
+            opt Įvestis senesnė nei 250 ms
+                Server->>Facade: SetInput(playerId, default)
+            end
+            opt Abi jungtys aktyvios
+                Server->>Facade: Tick(1 / 60)
+                Facade->>Simulation: Tick(dt, InputBuffer.Values)
+                Simulation->>Session: Update(dt, inputs)
+                Session->>Session: Laikmačiai, komandų vykdymas, judėjimas ir kovos logika
+                Session-->>Simulation: return
+                Simulation-->>Facade: return
+                Facade-->>Server: return
+            end
+        end
     end
-    P2->>Server: Atsijungimas
-    Server->>Facade: ClearInputs, sustabdyti žingsnius
-    Server-->>P1: Snapshot su ConnectedPlayers = 1
+    P2-)Server: TCP uždarymas
+    Server->>Server: ServeAsync finally: atlaisvinti vietą
+    Server->>Facade: ClearInputs()
+    Facade->>Session: DiscardPendingCommands()
+    Note over Server,Session: Kol trūksta jungties, TickAsync nebekviečia Tick
+    P1-)Server: Kita ClientFrame užklausa
+    Server->>Facade: SetInput(playerId, default)
+    Server->>Facade: Snapshot(1)
+    Facade-->>Server: snapshot
+    Server-)P1: ServerFrame su ConnectedPlayers = 1
 ```
+
 
 Transportas: TCP, JSON kadrai su 4 baitų big-endian ilgio prefiksu. Klientas siunčia tik duomenis ir leidžiamų veiksmų enum, ne vykdomus komandų objektus. Žaidėjo ID nustato serveris pagal jungties vietą. Vieno kliento užklausos aptarnaujamos su bent 16 ms tarpu, simuliacija turi atskirą 60 Hz laikmatį. Naujausia serverio būsena grafiniame kliente skaitoma iš foninio tinklo ciklo; tinklo laukimas nestabdo piešimo.
 

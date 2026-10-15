@@ -1,0 +1,80 @@
+@startuml
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+package "Core" {
+  abstract class "Entity" as Core_Entity {
+    +int Id
+    +Vector2 Position
+    +float Radius
+  }
+  class "Player" as Core_Player {
+    +int Health
+    +Vector2 Aim
+    +WeaponKind Weapon
+    +bool IsAlive
+  }
+  class "Zombie" as Core_Zombie {
+    +int Health
+    +float Speed
+    +ZombieKind Kind
+  }
+  class "Bullet" as Core_Bullet {
+    +Vector2 Velocity
+    +int Damage
+    +float Lifetime
+  }
+  class "Pickup" as Core_Pickup {
+    +PickupKind Kind
+    +float Lifetime
+  }
+  class "EntityFactory" as Core_EntityFactory {
+    -int nextId
+    +CreatePlayer(position) Player
+    +CreateZombie(position, kind, wave) Zombie
+    +CreateBullet(position, direction, owner, damage) Bullet
+    +CreatePickup(position, kind) Pickup
+  }
+  class "GameSession" as Core_GameSession {
+    +int Wave
+    +int Score
+    +SessionState State
+    +Update(dt, inputs) void
+  }
+  interface "IGameMode" as Core_IGameMode {
+    +EnemyCount(wave, players) int
+    +SpawnInterval(wave) float
+    +ChooseZombie(wave, random) ZombieKind
+  }
+  class "SurvivalMode" as Core_SurvivalMode {
+    +float IntermissionSeconds
+    +EnemyCount(wave, players) int
+    +SpawnInterval(wave) float
+    +ChooseZombie(wave, random) ZombieKind
+  }
+}
+package "Presentation" {
+  class "ZombieShooterGame" as Presentation_ZombieShooterGame {
+    -GameSession session
+    #Update(gameTime) void
+    #Draw(gameTime) void
+    -Restart() void
+  }
+  class "PixelText" as Presentation_PixelText {
+    <<static>>
+    {static} +Draw(batch, pixel, text, position, color, scale) void
+  }
+}
+Core_Entity <|-- Core_Player
+Core_Entity <|-- Core_Zombie
+Core_Entity <|-- Core_Bullet
+Core_Entity <|-- Core_Pickup
+Core_IGameMode <|.. Core_SurvivalMode
+Core_GameSession *-- Core_EntityFactory
+Core_GameSession --> "1" Core_IGameMode : mode
+Core_GameSession "1" *-- "1..2" Core_Player
+Core_GameSession "1" *-- "0..*" Core_Zombie
+Core_GameSession "1" *-- "0..*" Core_Bullet
+Core_GameSession "1" *-- "0..*" Core_Pickup
+Presentation_ZombieShooterGame *-- Core_GameSession
+Presentation_ZombieShooterGame ..> Presentation_PixelText
+@enduml

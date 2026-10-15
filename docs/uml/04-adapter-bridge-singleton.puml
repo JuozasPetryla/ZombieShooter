@@ -1,0 +1,82 @@
+@startuml
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+package "Presentation" {
+  interface "IPlayerInputSource" as Presentation_IPlayerInputSource {
+    +Read(playerPosition) PlayerInput
+  }
+  class "KeyboardMouseAdapter" as Presentation_KeyboardMouseAdapter {
+    -KeyboardMouseDevice device
+    +Read(playerPosition) PlayerInput
+  }
+  class "KeyboardMouseDevice" as Presentation_KeyboardMouseDevice {
+    +Movement() Vector2
+    +Cursor() Vector2
+    +Trigger() bool
+  }
+  class "ControllerAdapter" as Presentation_ControllerAdapter {
+    -ControllerDevice device
+    +Read(playerPosition) PlayerInput
+  }
+  class "ControllerDevice" as Presentation_ControllerDevice {
+    +Move() Vector2
+    +Aim() Vector2
+    +Trigger() float
+  }
+  class "HighScores" as Presentation_HighScores {
+    {static} -Lazy<HighScores> InstanceHolder
+    -int best
+    {static} +HighScores Instance
+    +int Best
+    -HighScores()
+    +Submit(score) void
+  }
+  class "ZombieShooterGame" as Presentation_ZombieShooterGame {
+    -IPlayerInputSource keyboardInput
+    -IPlayerInputSource controllerInput
+    #Update(gameTime) void
+  }
+}
+package "Core" {
+  abstract class "GameNotification" as Core_GameNotification {
+    #INotificationOutput Output
+    {abstract} +Show(message) void
+  }
+  class "WaveNotification" as Core_WaveNotification {
+    +Show(message) void
+  }
+  class "PickupNotification" as Core_PickupNotification {
+    +Show(message) void
+  }
+  interface "INotificationOutput" as Core_INotificationOutput {
+    +Write(text) void
+  }
+  class "HudNotificationOutput" as Core_HudNotificationOutput {
+    -Action display
+    +Write(text) void
+  }
+  class "ConsoleNotificationOutput" as Core_ConsoleNotificationOutput {
+    +Write(text) void
+  }
+}
+Presentation_IPlayerInputSource <|.. Presentation_KeyboardMouseAdapter
+Presentation_IPlayerInputSource <|.. Presentation_ControllerAdapter
+Presentation_KeyboardMouseAdapter --> Presentation_KeyboardMouseDevice : adaptee
+Presentation_ControllerAdapter --> Presentation_ControllerDevice : adaptee
+Presentation_ZombieShooterGame --> Presentation_IPlayerInputSource
+Presentation_ZombieShooterGame --> Presentation_HighScores
+Presentation_ZombieShooterGame --> Core_WaveNotification
+Presentation_ZombieShooterGame --> Core_PickupNotification
+Presentation_ZombieShooterGame ..> Core_HudNotificationOutput : creates
+Networking_GameServer ..> Core_WaveNotification
+Networking_GameServer ..> Core_PickupNotification
+Networking_GameServer ..> Core_ConsoleNotificationOutput : creates
+Core_GameNotification --> "1" Core_INotificationOutput : Output
+Core_GameNotification <|-- Core_WaveNotification
+Core_GameNotification <|-- Core_PickupNotification
+Core_INotificationOutput <|.. Core_HudNotificationOutput
+Core_INotificationOutput <|.. Core_ConsoleNotificationOutput
+package "Networking" {
+  class "GameServer" as Networking_GameServer <<reference>>
+}
+@enduml
