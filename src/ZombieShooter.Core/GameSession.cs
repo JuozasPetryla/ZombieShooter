@@ -4,13 +4,15 @@ using ZombieShooter.Core.Commands;
 namespace ZombieShooter.Core;
 
 /// <summary>Device- and renderer-independent simulation. Call once per fixed tick on the authority.</summary>
-public sealed class GameSession
+public sealed partial class GameSession
 {
     public const float Width = 1280;
     public const float Height = 720;
     private readonly EntityFactory _factory;
     private readonly Random _random;
     private readonly IGameMode _mode;
+    private readonly IDropPolicy _drops;
+    private readonly Dictionary<int, IGameCommand> _lastCommands = new();
     private readonly List<Player> _players = [];
     private readonly List<Zombie> _zombies = [];
     private readonly List<Bullet> _bullets = [];
@@ -37,6 +39,7 @@ public sealed class GameSession
         content ??= new NormalContentFactory();
         _factory = content.CreateEntityFactory();
         _mode = mode ?? content.CreateGameMode();
+        _drops = content.CreateDropPolicy();
         _random = new Random(seed);
         for (int i = 0; i < playerCount; i++)
             _players.Add(_factory.CreatePlayer(new Vector2(Width / 2 + i * 50, Height / 2)));
@@ -63,6 +66,7 @@ public sealed class GameSession
         if (State == SessionState.GameOver || player is null || !player.IsAlive ||
             player.IsReloading || player.Ammo == player.MagazineSize) return false;
         player.ReloadRemaining = player.Gear.ReloadTime;
+        player.ActionVersion++;
         EventOccurred?.Invoke(new("ReloadStarted", player.Id));
         return true;
     }
@@ -75,7 +79,21 @@ public sealed class GameSession
             (weapon == WeaponKind.Shotgun && player.WeaponTime <= 0)) return false;
         player.ReloadRemaining = 0;
         player.Weapon = weapon;
+        player.ActionVersion++;
         EventOccurred?.Invoke(new("WeaponSelected", player.Id, (int)weapon));
+        return true;
+    }
+
+    internal void DiscardPendingCommands()
+    {
+        _commands.Clear();
+        _lastCommands.Clear();
+    }
+
+    public bool UndoLast(int playerId)
+    {
+        if (!_lastCommands.Remove(playerId, out var command) || !command.Undo(this)) return false;
+        EventOccurred?.Invoke(new("ActionUndone", playerId));
         return true;
     }
 
@@ -91,6 +109,7 @@ public sealed class GameSession
             player.WeaponTime = Math.Max(0, player.WeaponTime - dt);
             if (player.WeaponTime == 0 && player.Weapon == WeaponKind.Shotgun)
             {
+                player.ActionVersion++;
                 player.Weapon = WeaponKind.Pistol;
                 player.ReloadRemaining = 0;
             }
@@ -99,6 +118,7 @@ public sealed class GameSession
                 player.ReloadRemaining = Math.Max(0, player.ReloadRemaining - dt);
                 if (!player.IsReloading)
                 {
+                    player.ActionVersion++;
                     if (player.Weapon == WeaponKind.Pistol) player.PistolAmmo = player.MagazineSize;
                     else player.ShotgunAmmo = player.MagazineSize;
                     EventOccurred?.Invoke(new("ReloadCompleted", player.Id));
@@ -107,7 +127,12 @@ public sealed class GameSession
         }
         // Apply discrete actions before continuous input (including held fire).
         int commandCount = _commands.Count;
-        for (int i = 0; i < commandCount; i++) _commands.Dequeue().Execute(this);
+        for (int i = 0; i < commandCount; i++)
+        {
+            var command = _commands.Dequeue();
+            if (command.Execute(this) && command is not UndoCommand)
+                _lastCommands[command.PlayerId] = command;
+        }
         foreach (var player in _players.Where(p => p.IsAlive))
         {
             inputs.TryGetValue(player.Id, out var input);
@@ -146,6 +171,7 @@ public sealed class GameSession
         {
             State = SessionState.GameOver;
             _commands.Clear();
+            _lastCommands.Clear();
             EventOccurred?.Invoke(new("GameOver", Value: Score));
         }
         else if (State == SessionState.Active && EnemiesRemaining == 0)
@@ -163,7 +189,6 @@ public sealed class GameSession
                 player.Position = new Vector2(Width / 2, Height / 2);
                 player.HurtCooldown = 2;
             }
-            EventOccurred?.Invoke(new("WaveCleared", Value: Wave));
         }
     }
 
@@ -180,12 +205,13 @@ public sealed class GameSession
 
     private void Fire(Player player)
     {
+        player.ActionVersion++;
         var gear = player.Gear;
         if (player.Weapon == WeaponKind.Shotgun) player.ShotgunAmmo--;
         else player.PistolAmmo--;
-        for (int i = gear.Pellets > 1 ? -2 : 0; i <= (gear.Pellets > 1 ? 2 : 0); i++)
+        for (int i = 0; i < gear.Pellets; i++)
         {
-            var direction = Vector2.Transform(player.Aim, Matrix3x2.CreateRotation(i * 0.12f));
+            var direction = Vector2.Transform(player.Aim, Matrix3x2.CreateRotation((i - (gear.Pellets - 1) / 2f) * 0.12f));
             _bullets.Add(_factory.CreateBullet(player.Position + player.Aim * 20, direction, player.Id, gear.Damage));
         }
         player.FireCooldown = gear.FireCooldown;
@@ -218,6 +244,7 @@ public sealed class GameSession
             {
                 if (Vector2.Distance(player.Position, zombie.Position) > player.Radius + zombie.Radius || player.HurtCooldown > 0) continue;
                 player.Health = Math.Max(0, player.Health - zombie.Attack.Damage);
+                if (!player.IsAlive) player.ActionVersion++;
                 player.HurtCooldown = zombie.Attack.Cooldown;
                 EventOccurred?.Invoke(new("PlayerHurt", player.Id, player.Health));
             }
@@ -251,10 +278,10 @@ public sealed class GameSession
             bullet.Lifetime = 0;
             hit.Health -= bullet.Damage;
             if (hit.Health > 0) continue;
-            Score += hit.Kind == ZombieKind.Brute ? 30 : 10;
+            Score += hit.XpReward;
             EventOccurred?.Invoke(new("ZombieKilled", hit.Id, bullet.OwnerId));
-            if (_random.NextSingle() < 0.22f)
-                _pickups.Add(_factory.CreatePickup(Clamp(hit.Position, 12), _random.Next(2) == 0 ? PickupKind.Health : PickupKind.Shotgun));
+            if (_drops.Roll(_random) is { } kind)
+                _pickups.Add(_factory.CreatePickup(Clamp(hit.Position, 12), kind));
         }
         _bullets.RemoveAll(b => b.Lifetime <= 0 || b.Position.X < -50 || b.Position.X > Width + 50 || b.Position.Y < 0 || b.Position.Y > Height + 50);
         _zombies.RemoveAll(z => z.Health <= 0);
@@ -280,6 +307,7 @@ public sealed class GameSession
                     player.WeaponTime = 15;
                     player.ShotgunAmmo = player.ShotgunGear.MagazineSize;
                 }
+                player.ActionVersion++;
                 pickup.Lifetime = 0;
                 EventOccurred?.Invoke(new("PickupCollected", player.Id, (int)pickup.Kind));
                 break;
@@ -290,7 +318,8 @@ public sealed class GameSession
 
     private static void UpgradeWeapons(Player player)
     {
-        player.PistolGear = new FireRateBonus(new DamageBonus(player.PistolGear, 5), 0.95f);
-        player.ShotgunGear = new FireRateBonus(new DamageBonus(player.ShotgunGear, 3), 0.95f);
+        player.ActionVersion++;
+        player.PistolGear = new MagazineSizeBonus(new FireRateBonus(new DamageBonus(player.PistolGear, 5), 0.95f), 1);
+        player.ShotgunGear = new MagazineSizeBonus(new FireRateBonus(new DamageBonus(player.ShotgunGear, 3), 0.95f), 1);
     }
 }

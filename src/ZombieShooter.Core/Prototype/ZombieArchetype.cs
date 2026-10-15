@@ -27,6 +27,8 @@ public sealed class ZombieArchetype : IPrototype<ZombieArchetype>
     public int XpReward { get; set; }
     public AttackProfile Attack { get; set; } = new();
 
+    public ZombieArchetype ShallowClone() => (ZombieArchetype)MemberwiseClone();
+
     public ZombieArchetype Clone() => new ()
     {
         Kind = Kind,

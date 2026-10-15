@@ -3,7 +3,7 @@ namespace ZombieShooter.Core;
 /// <summary>
 /// Builder pattern: provides a flexible solution to constructing complex objects step by step. It allows for the creation of different representations of an object using the same construction process, making it easier to manage and customize the creation of objects with many optional parameters or configurations.
 /// </summary>
-public sealed class ZombieBuilder
+public abstract class ZombieBuilder
 {
     private ZombieKind _kind = ZombieKind.Walker;
     private int _health = 60;
@@ -26,13 +26,13 @@ public sealed class ZombieBuilder
         return this;
     }
 
-    public ZombieArchetype Build()
+    public virtual ZombieArchetype Build()
     {
         if (_health <= 0) throw new InvalidOperationException("Health must be greater than 0.");
-        if (_speed <= 0) throw new InvalidOperationException("Speed must be greater than 0.");
-        if (_radius <= 0) throw new InvalidOperationException("Radius must be greater than 0.");
+        if (!float.IsFinite(_speed) || _speed <= 0) throw new InvalidOperationException("Speed must be greater than 0.");
+        if (!float.IsFinite(_radius) || _radius <= 0) throw new InvalidOperationException("Radius must be greater than 0.");
         if (_xpReward < 0) throw new InvalidOperationException("XP reward cannot be negative.");
-        if (_attackDamage < 0 || _attackCooldown <= 0) throw new InvalidOperationException("Attack damage must be non-negative and cooldown must be greater than 0.");
+        if (_attackDamage < 0 || !float.IsFinite(_attackCooldown) || _attackCooldown <= 0) throw new InvalidOperationException("Attack damage must be non-negative and cooldown must be greater than 0.");
 
         return new ZombieArchetype
         {
@@ -43,5 +43,18 @@ public sealed class ZombieBuilder
             XpReward = _xpReward,
             Attack = new AttackProfile { Damage = _attackDamage, Cooldown = _attackCooldown }
         };
+    }
+}
+// Two concrete builders share the same director recipes but produce distinct representations.
+public sealed class StandardZombieBuilder : ZombieBuilder { }
+
+public sealed class ArmoredZombieBuilder : ZombieBuilder
+{
+    public override ZombieArchetype Build()
+    {
+        var result = base.Build();
+        result.Health = (int)(result.Health * 1.5f);
+        result.Speed *= 1.25f;
+        return result;
     }
 }

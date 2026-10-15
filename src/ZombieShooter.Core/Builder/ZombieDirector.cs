@@ -2,7 +2,7 @@ namespace ZombieShooter.Core;
 
 public static class ZombieDirector
 {
-    public static ZombieArchetype Walker() => new ZombieBuilder()
+    public static ZombieArchetype Walker(ZombieBuilder? builder = null) => (builder ?? new StandardZombieBuilder())
         .OfKind(ZombieKind.Walker)
         .WithHealth(60)
         .WithSpeed(70f)
@@ -11,7 +11,7 @@ public static class ZombieDirector
         .WithAttack(10, 0.65f)
         .Build();
 
-    public static ZombieArchetype Runner() => new ZombieBuilder()
+    public static ZombieArchetype Runner(ZombieBuilder? builder = null) => (builder ?? new StandardZombieBuilder())
         .OfKind(ZombieKind.Runner)
         .WithHealth(35)
         .WithSpeed(125f)
@@ -20,7 +20,7 @@ public static class ZombieDirector
         .WithAttack(8, 0.5f)
         .Build();
 
-    public static ZombieArchetype Brute() => new ZombieBuilder()
+    public static ZombieArchetype Brute(ZombieBuilder? builder = null) => (builder ?? new StandardZombieBuilder())
         .OfKind(ZombieKind.Brute)
         .WithHealth(150)
         .WithSpeed(48f)

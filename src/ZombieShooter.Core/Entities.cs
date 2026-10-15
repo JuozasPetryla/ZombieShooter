@@ -34,11 +34,12 @@ public sealed class Player(int id, Vector2 position) : Entity(id, position, 15)
     public int MagazineSize => Gear.MagazineSize;
     public float ReloadRemaining { get; internal set; }
     public bool IsReloading => ReloadRemaining > 0;
+    internal long ActionVersion;
     internal float FireCooldown;
     internal float HurtCooldown;
 }
 
-public sealed class Zombie(int id, Vector2 position, ZombieArchetype archetype)
+public class Zombie(int id, Vector2 position, ZombieArchetype archetype)
     : Entity(id, position, archetype.Radius)
 {
     public ZombieKind Kind { get; } = archetype.Kind;
@@ -66,27 +67,31 @@ public sealed class Pickup(int id, Vector2 position, PickupKind kind) : Entity(i
 // Factory centralizes identities and construction; it belongs to one session.
 public class EntityFactory
 {
+    private static readonly IReadOnlyDictionary<ZombieKind, ZombieCreator> ZombieCreators =
+        new Dictionary<ZombieKind, ZombieCreator>
+        {
+            [ZombieKind.Walker] = new WalkerCreator(),
+            [ZombieKind.Runner] = new RunnerCreator(),
+            [ZombieKind.Brute] = new BruteCreator()
+        };
     private int _nextId;
     private readonly ArchetypeRegistry _registry = new();
 
-    public EntityFactory()
+    public EntityFactory(ZombieBuilder? builder = null)
     {
-        _registry.Register(ZombieDirector.Walker());
-        _registry.Register(ZombieDirector.Runner());
-        _registry.Register(ZombieDirector.Brute());
+        _registry.Register(ZombieDirector.Walker(builder));
+        _registry.Register(ZombieDirector.Runner(builder));
+        _registry.Register(ZombieDirector.Brute(builder));
     }
     public Player CreatePlayer(Vector2 position) => new(++_nextId, position);
 
     public Zombie CreateZombie(Vector2 position, ZombieKind kind, int wave)
     {
         var archetype = _registry.Get(kind);
-        Tune(archetype);
         archetype.Health += (wave - 1) * 5;
         archetype.Speed += Math.Min(wave - 1, 20) * 2;
-        return new(++_nextId, position, archetype);
+        return ZombieCreators[kind].Create(++_nextId, position, archetype);
     }
-
-    protected virtual void Tune(ZombieArchetype archetype) { } // Hook for subclasses to modify archetypes
 
     public Bullet CreateBullet(Vector2 position, Vector2 direction, int ownerId, int damage)
         => new(++_nextId, position, direction * 650, ownerId, damage);

@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../../src/ZombieShooter/HighScores.cs" Link="HighScores.cs" />
     <ProjectReference Include="../../src/ZombieShooter.Core/ZombieShooter.Core.csproj" />
   </ItemGroup>
 </Project>

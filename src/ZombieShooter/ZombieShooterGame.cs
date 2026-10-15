@@ -3,6 +3,7 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using ZombieShooter.Core;
 using ZombieShooter.Core.Commands;
+using ZombieShooter.Core.Networking;
 using NVector2 = System.Numerics.Vector2;
 
 namespace ZombieShooter;
@@ -13,6 +14,15 @@ public sealed class ZombieShooterGame : Game
     private SpriteBatch _batch = null!;
     private Texture2D _pixel = null!;
     private GameSession _session = null!;
+    private GameFacade _facade = null!;
+    private readonly NetworkGameClient? _network;
+    private readonly IPlayerInputSource _keyboardInput = new KeyboardMouseAdapter(new KeyboardMouseDevice());
+    private readonly IPlayerInputSource _controllerInput = new ControllerAdapter(new ControllerDevice());
+    private WaveNotification _waveNotice = null!;
+    private PickupNotification _pickupNotice = null!;
+    private int _strategy;
+    private string ModeName => _network is not null ? "ONLINE" : _strategy switch
+        { 1 => "HORDE", 2 => "BRUTE", _ => _content.Name };
     private KeyboardState _previous;
     private GamePadState _previousPad;
     private bool _paused;
@@ -22,8 +32,13 @@ public sealed class ZombieShooterGame : Game
     private readonly Dictionary<int, PlayerInput> _inputs = [];
     private IContentFactory _content = new NormalContentFactory();
 
-    public ZombieShooterGame()
+    public ZombieShooterGame(NetworkGameClient? network = null)
     {
+        _network = network;
+        if (network is not null) _playerCount = 2;
+        var output = new HudNotificationOutput(text => { _notice = text; _noticeTime = 2; });
+        _waveNotice = new WaveNotification(output);
+        _pickupNotice = new PickupNotification(output);
         _graphics = new GraphicsDeviceManager(this)
         {
             PreferredBackBufferWidth = 1280,
@@ -41,7 +56,10 @@ public sealed class ZombieShooterGame : Game
     private void Restart()
     {
         if (_session is not null) _session.EventOccurred -= OnGameEvent;
-        _session = new GameSession(_playerCount, Environment.TickCount, content: _content);
+        IGameMode? mode = _strategy switch { 1 => new HordeMode(), 2 => new BruteMode(), _ => null };
+        _facade = new GameFacade(_playerCount, Environment.TickCount, mode, _content);
+        _session = _facade.Session;
+        if (_network is not null) _session.ApplySnapshot(_network.Latest.Snapshot);
         _session.EventOccurred += OnGameEvent;
         _paused = false;
         _notice = _playerCount == 2 ? "LOCAL CO-OP" : "SURVIVE THE HORDE";
@@ -50,15 +68,21 @@ public sealed class ZombieShooterGame : Game
 
     private void OnGameEvent(GameEvent message)
     {
-        string? notice = message.Name switch
+        if (message.Name is "WaveStarted" or "WaveCleared" or "WeaponsUpgraded") _waveNotice.Show(message);
+        else if (message.Name == "PickupCollected") _pickupNotice.Show(message);
+        else if (message.Name == "ActionUndone") { _notice = "ACTION UNDONE"; _noticeTime = 2; }
+    }
+
+    private void Queue(IGameCommand command)
+    {
+        if (_network is null) { _facade.Queue(command); return; }
+        _network.Queue(command switch
         {
-            "WaveStarted" => $"WAVE {message.Value}",
-            "WaveCleared" => "WAVE CLEARED",
-            "WeaponsUpgraded" => "WEAPONS UPGRADED",
-            "PickupCollected" => message.Value == (int)PickupKind.Health ? "HEALTH +35" : "SHOTGUN 15 SECONDS",
-            _ => null
-        };
-        if (notice is not null) { _notice = notice; _noticeTime = 2; }
+            ReloadCommand => NetworkAction.Reload,
+            SelectWeaponCommand { Weapon: WeaponKind.Pistol } => NetworkAction.Pistol,
+            SelectWeaponCommand => NetworkAction.Shotgun,
+            _ => NetworkAction.Undo
+        });
     }
 
     protected override void LoadContent()
@@ -78,48 +102,60 @@ public sealed class ZombieShooterGame : Game
         bool Pressed(Keys key) => keys.IsKeyDown(key) && _previous.IsKeyUp(key);
 
         if (Pressed(Keys.Escape)) Exit();
-        if (Pressed(Keys.F2)) {
+        if (_network is null && Pressed(Keys.F2)) {
             _playerCount = _playerCount == 1 ? 2 : 1;
             Restart();
-        } else if (Pressed(Keys.F3)) {
+        } else if (_network is null && Pressed(Keys.F3)) {
             _content = _content is NormalContentFactory ? new NightmareContentFactory() : new NormalContentFactory();
             Restart();
-        } else if (Pressed(Keys.R)) Restart();
+        } else if (_network is null && Pressed(Keys.F4)) {
+            _strategy = (_strategy + 1) % 3;
+            Restart();
+        } else if (_network is null && Pressed(Keys.R)) Restart();
 
-        if (Pressed(Keys.P)) _paused = !_paused;
+        if (_network is null && Pressed(Keys.P)) _paused = !_paused;
+        if (_network is not null)
+        {
+            _session.ApplySnapshot(_network.Latest.Snapshot);
+            if (!IsActive) _network.SetInput(default);
+        }
         if (IsActive && !_paused)
         {
             _inputs.Clear();
-            var mouse = Mouse.GetState();
-            var p1 = _session.Players[0];
-            if (Pressed(Keys.E)) _session.EnqueueCommand(new ReloadCommand(p1.Id));
-            if (Pressed(Keys.D1)) _session.EnqueueCommand(new SelectWeaponCommand(p1.Id, WeaponKind.Pistol));
-            if (Pressed(Keys.D2)) _session.EnqueueCommand(new SelectWeaponCommand(p1.Id, WeaponKind.Shotgun));
-            _inputs[p1.Id] = new PlayerInput(
-                new NVector2(Axis(keys, Keys.A, Keys.D), Axis(keys, Keys.W, Keys.S)),
-                new NVector2(mouse.X, mouse.Y) - p1.Position,
-                mouse.LeftButton == ButtonState.Pressed);
-            if (_playerCount == 2)
+            var p1 = _network is null ? _session.Players[0] : _session.Players.Single(p => p.Id == _network.PlayerId);
+            if (Pressed(Keys.E)) Queue(new ReloadCommand(p1.Id));
+            if (Pressed(Keys.D1)) Queue(new SelectWeaponCommand(p1.Id, WeaponKind.Pistol));
+            if (Pressed(Keys.D2)) Queue(new SelectWeaponCommand(p1.Id, WeaponKind.Shotgun));
+            if (Pressed(Keys.Z)) Queue(new UndoCommand(p1.Id));
+            _inputs[p1.Id] = _keyboardInput.Read(p1.Position);
+            if (_playerCount == 2 && _network is null)
             {
                 var p2 = _session.Players[1];
-                if (Pressed(Keys.O) || PadPressed(Buttons.X)) _session.EnqueueCommand(new ReloadCommand(p2.Id));
+                if (Pressed(Keys.N)) Queue(new UndoCommand(p2.Id));
+                if (Pressed(Keys.O) || PadPressed(Buttons.X)) Queue(new ReloadCommand(p2.Id));
                 if (Pressed(Keys.D9) || PadPressed(Buttons.LeftShoulder))
-                    _session.EnqueueCommand(new SelectWeaponCommand(p2.Id, WeaponKind.Pistol));
+                    Queue(new SelectWeaponCommand(p2.Id, WeaponKind.Pistol));
                 if (Pressed(Keys.D0) || PadPressed(Buttons.RightShoulder))
-                    _session.EnqueueCommand(new SelectWeaponCommand(p2.Id, WeaponKind.Shotgun));
+                    Queue(new SelectWeaponCommand(p2.Id, WeaponKind.Shotgun));
                 var move = new NVector2(Axis(keys, Keys.Left, Keys.Right), Axis(keys, Keys.Up, Keys.Down));
                 var aim = new NVector2(Axis(keys, Keys.J, Keys.L), Axis(keys, Keys.I, Keys.K));
                 bool fire = keys.IsKeyDown(Keys.RightControl) || keys.IsKeyDown(Keys.Enter);
                 if (pad.IsConnected)
                 {
-                    move = new NVector2(pad.ThumbSticks.Left.X, -pad.ThumbSticks.Left.Y);
-                    aim = new NVector2(pad.ThumbSticks.Right.X, -pad.ThumbSticks.Right.Y);
-                    fire = pad.Triggers.Right > 0.2f;
+                    var input = _controllerInput.Read(p2.Position);
+                    move = input.Move;
+                    aim = input.Aim;
+                    fire = input.Fire;
                 }
                 _inputs[_session.Players[1].Id] = new PlayerInput(move, aim, fire);
             }
             float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
-            _session.Update(dt, _inputs);
+            if (_network is null)
+            {
+                foreach (var input in _inputs) _facade.SetInput(input.Key, input.Value);
+                _facade.Tick(dt);
+            }
+            else _network.SetInput(_inputs[p1.Id]);
             HighScores.Instance.Submit(_session.Score);
             _noticeTime -= dt;
         }
@@ -177,7 +213,7 @@ public sealed class ZombieShooterGame : Game
         foreach (var bullet in _session.Bullets) Box(bullet.Position.X - 3, bullet.Position.Y - 3, 6, 6, Color.LightGoldenrodYellow);
         Box(0, 0, 1280, 60, new Color(12, 16, 20));
         Text($"WAVE {_session.Wave}  LEFT {_session.EnemiesRemaining}  SCORE {_session.Score}", 20, 12, Color.White);
-        Text("WASD MOUSE  E RELOAD  1/2 WEAPON  P PAUSE  R RESET  F2 CO-OP", 20, 38, Color.LightSlateGray, 2);
+        Text((_network is null ? "E RELOAD Z UNDO 1/2 GUN P PAUSE R RESET F2 COOP F3 FAMILY F4 MODE" : $"ONLINE P{_network.PlayerId} WASD MOUSE E RELOAD Z UNDO 1/2 GUN"), 20, 38, Color.LightSlateGray, 2);
         for (int i = 0; i < _session.Players.Count; i++)
         {
             var player = _session.Players[i];
@@ -188,18 +224,23 @@ public sealed class ZombieShooterGame : Game
         if (_noticeTime > 0) Text(_notice, 440, 92, Color.Gold);
         if (_session.State == SessionState.Intermission)
             Text($"NEXT WAVE IN {Math.Max(1, (int)MathF.Ceiling(_session.IntermissionRemaining))}", 490, 125, Color.White, 2);
-        if (_playerCount == 2)
-            Text("P2 ARROWS IJKL ENTER FIRE  O RELOAD  9/0 WEAPON / PAD X LB RB", 190, 680, Color.Orange, 2);
+        if (_playerCount == 2 && _network is null)
+            Text("P2 ARROWS IJKL ENTER FIRE  O RELOAD N UNDO 9/0 GUN / PAD X LB RB", 190, 680, Color.Orange, 2);
         if (_paused || !IsActive || _session.State == SessionState.GameOver)
         {
             Box(300, 280, 680, 150, Color.Black * 0.9f);
             Text(_session.State == SessionState.GameOver ? "GAME OVER" : "PAUSED", 470, 310, Color.White, 5);
-            Text(_session.State == SessionState.GameOver ? "R RESTART / F2 CHANGE PLAYERS" : "P RESUME / R RESTART", 420, 380, Color.LightGray, 3);
+            Text(_session.State == SessionState.GameOver ? (_network is null ? "R RESTART / F2 CHANGE PLAYERS" : "ESC EXIT - RESTART SERVER FOR NEW MATCH") : (_network is null ? "P RESUME / R RESTART" : "FOCUS WINDOW TO RESUME CONTROL"), 350, 380, Color.LightGray, 2);
         }
 
         Text($"BEST {HighScores.Instance.Best}", 1060, 10, Color.Gold, 2);
-        Text($"MODE {_content.Name}", 1060, 34, Color.LightSlateGray, 2);
+        Text($"MODE {ModeName}", 1060, 34, Color.LightSlateGray, 2);
         
+        if (_network is not null && (_network.Error is not null || _network.Latest.Snapshot.ConnectedPlayers < 2))
+        {
+            Box(250, 220, 800, 45, Color.Black);
+            Text(_network.Error ?? "WAITING FOR SECOND PLAYER", 280, 232, Color.Gold, 3);
+        }
         _batch.End();
         base.Draw(gameTime);
     }
@@ -207,6 +248,7 @@ public sealed class ZombieShooterGame : Game
     protected override void UnloadContent()
     {
         _session.EventOccurred -= OnGameEvent;
+        _network?.SetInput(default);
         _pixel.Dispose();
         _batch.Dispose();
         base.UnloadContent();
