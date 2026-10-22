@@ -1,10 +1,6 @@
 namespace ZombieShooter.Core;
 
-/// <summary>
-/// Prototype pattern: defines a method for creating objects by cloning existing instances, allowing for the creation of new objects without specifying their concrete classes.
-/// This pattern is useful when the cost of creating a new object is expensive or complex, and when you want to avoid subclassing for every possible object type.
-/// </summary>
-/// <typeparam name="T"></typeparam>
+// Prototype: clone reusable templates; nested attack data supports the deep/shallow demonstration.
 public interface IPrototype<T>
 {
     T Clone();
@@ -38,13 +34,4 @@ public sealed class ZombieArchetype : IPrototype<ZombieArchetype>
         XpReward = XpReward,
         Attack = Attack.Clone()
     };
-}
-
-public sealed class ArchetypeRegistry
-{
-    private readonly Dictionary<ZombieKind, ZombieArchetype> _templates = new();
-
-    public void Register(ZombieArchetype archetype) => _templates[archetype.Kind] = archetype;
-
-    public ZombieArchetype Get(ZombieKind kind) => _templates[kind].Clone();
 }

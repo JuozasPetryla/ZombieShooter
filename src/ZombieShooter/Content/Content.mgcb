@@ -1,8 +1,0 @@
-# Global content build settings. Add assets here when development starts.
-/outputDir:bin/$(Platform)
-/intermediateDir:obj/$(Platform)
-/platform:DesktopGL
-/config:
-/profile:Reach
-/compress:False
-

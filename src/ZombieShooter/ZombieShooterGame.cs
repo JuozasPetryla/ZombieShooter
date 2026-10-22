@@ -8,9 +8,8 @@ using NVector2 = System.Numerics.Vector2;
 
 namespace ZombieShooter;
 
-public sealed class ZombieShooterGame : Game
+public sealed class ZombieShooterGame : Game, INotificationOutput
 {
-    private readonly GraphicsDeviceManager _graphics;
     private SpriteBatch _batch = null!;
     private Texture2D _pixel = null!;
     private GameSession _session = null!;
@@ -20,32 +19,27 @@ public sealed class ZombieShooterGame : Game
     private readonly IPlayerInputSource _controllerInput = new ControllerAdapter(new ControllerDevice());
     private WaveNotification _waveNotice = null!;
     private PickupNotification _pickupNotice = null!;
-    private int _strategy;
-    private string ModeName => _network is not null ? "ONLINE" : _strategy switch
-        { 1 => "HORDE", 2 => "BRUTE", _ => _content.Name };
+    private GamePreset _preset;
+    private string ModeName => _network is not null ? "ONLINE" : _preset.ToString().ToUpperInvariant();
     private KeyboardState _previous;
     private GamePadState _previousPad;
     private bool _paused;
     private int _playerCount = 1;
     private string _notice = "SURVIVE THE HORDE";
     private float _noticeTime = 3;
-    private readonly Dictionary<int, PlayerInput> _inputs = [];
-    private IContentFactory _content = new NormalContentFactory();
 
     public ZombieShooterGame(NetworkGameClient? network = null)
     {
         _network = network;
         if (network is not null) _playerCount = 2;
-        var output = new HudNotificationOutput(text => { _notice = text; _noticeTime = 2; });
-        _waveNotice = new WaveNotification(output);
-        _pickupNotice = new PickupNotification(output);
-        _graphics = new GraphicsDeviceManager(this)
+        _waveNotice = new WaveNotification(this);
+        _pickupNotice = new PickupNotification(this);
+        _ = new GraphicsDeviceManager(this)
         {
             PreferredBackBufferWidth = 1280,
             PreferredBackBufferHeight = 720,
             SynchronizeWithVerticalRetrace = true
         };
-        Content.RootDirectory = "Content";
         Window.Title = "Zombie Shooter - Survival";
         IsMouseVisible = true;
         IsFixedTimeStep = true;
@@ -53,11 +47,13 @@ public sealed class ZombieShooterGame : Game
         Restart();
     }
 
+    // Bridge output and Observer subscriber share the existing desktop host.
+    public void Write(string text) { _notice = text; _noticeTime = 2; }
+
     private void Restart()
     {
         if (_session is not null) _session.EventOccurred -= OnGameEvent;
-        IGameMode? mode = _strategy switch { 1 => new HordeMode(), 2 => new BruteMode(), _ => null };
-        _facade = new GameFacade(_playerCount, Environment.TickCount, mode, _content);
+        _facade = GameFacade.CreatePreset(_preset, _playerCount, Environment.TickCount);
         _session = _facade.Session;
         if (_network is not null) _session.ApplySnapshot(_network.Latest.Snapshot);
         _session.EventOccurred += OnGameEvent;
@@ -106,10 +102,7 @@ public sealed class ZombieShooterGame : Game
             _playerCount = _playerCount == 1 ? 2 : 1;
             Restart();
         } else if (_network is null && Pressed(Keys.F3)) {
-            _content = _content is NormalContentFactory ? new NightmareContentFactory() : new NormalContentFactory();
-            Restart();
-        } else if (_network is null && Pressed(Keys.F4)) {
-            _strategy = (_strategy + 1) % 3;
+            _preset = (GamePreset)(((int)_preset + 1) % Enum.GetValues<GamePreset>().Length);
             Restart();
         } else if (_network is null && Pressed(Keys.R)) Restart();
 
@@ -121,13 +114,14 @@ public sealed class ZombieShooterGame : Game
         }
         if (IsActive && !_paused)
         {
-            _inputs.Clear();
             var p1 = _network is null ? _session.Players[0] : _session.Players.Single(p => p.Id == _network.PlayerId);
             if (Pressed(Keys.E)) Queue(new ReloadCommand(p1.Id));
             if (Pressed(Keys.D1)) Queue(new SelectWeaponCommand(p1.Id, WeaponKind.Pistol));
             if (Pressed(Keys.D2)) Queue(new SelectWeaponCommand(p1.Id, WeaponKind.Shotgun));
             if (Pressed(Keys.Z)) Queue(new UndoCommand(p1.Id));
-            _inputs[p1.Id] = _keyboardInput.Read(p1.Position);
+            var input1 = _keyboardInput.Read(p1.Position);
+            if (_network is null) _facade.SetInput(p1.Id, input1);
+            else _network.SetInput(input1);
             if (_playerCount == 2 && _network is null)
             {
                 var p2 = _session.Players[1];
@@ -147,15 +141,10 @@ public sealed class ZombieShooterGame : Game
                     aim = input.Aim;
                     fire = input.Fire;
                 }
-                _inputs[_session.Players[1].Id] = new PlayerInput(move, aim, fire);
+                _facade.SetInput(p2.Id, new PlayerInput(move, aim, fire));
             }
             float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
-            if (_network is null)
-            {
-                foreach (var input in _inputs) _facade.SetInput(input.Key, input.Value);
-                _facade.Tick(dt);
-            }
-            else _network.SetInput(_inputs[p1.Id]);
+            if (_network is null) _facade.Tick(dt);
             HighScores.Instance.Submit(_session.Score);
             _noticeTime -= dt;
         }
@@ -213,7 +202,7 @@ public sealed class ZombieShooterGame : Game
         foreach (var bullet in _session.Bullets) Box(bullet.Position.X - 3, bullet.Position.Y - 3, 6, 6, Color.LightGoldenrodYellow);
         Box(0, 0, 1280, 60, new Color(12, 16, 20));
         Text($"WAVE {_session.Wave}  LEFT {_session.EnemiesRemaining}  SCORE {_session.Score}", 20, 12, Color.White);
-        Text((_network is null ? "E RELOAD Z UNDO 1/2 GUN P PAUSE R RESET F2 COOP F3 FAMILY F4 MODE" : $"ONLINE P{_network.PlayerId} WASD MOUSE E RELOAD Z UNDO 1/2 GUN"), 20, 38, Color.LightSlateGray, 2);
+        Text((_network is null ? "E RELOAD Z UNDO 1/2 GUN P PAUSE R RESET F2 COOP F3 MODE" : $"ONLINE P{_network.PlayerId} WASD MOUSE E RELOAD Z UNDO 1/2 GUN"), 20, 38, Color.LightSlateGray, 2);
         for (int i = 0; i < _session.Players.Count; i++)
         {
             var player = _session.Players[i];

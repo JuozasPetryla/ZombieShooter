@@ -25,8 +25,8 @@ public sealed class Player(int id, Vector2 position) : Entity(id, position, 15)
     public Vector2 Aim { get; internal set; } = Vector2.UnitX;
     public WeaponKind Weapon { get; internal set; }
     public float WeaponTime { get; internal set; }
-    public IWeapon PistolGear {get; internal set; } = new Pistol();
-    public IWeapon ShotgunGear {get; internal set; } = new Shotgun();
+    public IWeapon PistolGear {get; internal set; } = WeaponStats.Pistol;
+    public IWeapon ShotgunGear {get; internal set; } = WeaponStats.Shotgun;
     public IWeapon Gear => Weapon == WeaponKind.Pistol ? PistolGear : ShotgunGear;
     public int PistolAmmo { get; internal set; } = 12;
     public int ShotgunAmmo { get; internal set; } = 6;
@@ -75,19 +75,35 @@ public class EntityFactory
             [ZombieKind.Brute] = new BruteCreator()
         };
     private int _nextId;
-    private readonly ArchetypeRegistry _registry = new();
+    private readonly Dictionary<ZombieKind, ZombieArchetype> _templates = new();
 
     public EntityFactory(ZombieBuilder? builder = null)
     {
-        _registry.Register(ZombieDirector.Walker(builder));
-        _registry.Register(ZombieDirector.Runner(builder));
-        _registry.Register(ZombieDirector.Brute(builder));
+        builder ??= new NormalContent();
+        foreach (var kind in Enum.GetValues<ZombieKind>())
+            _templates[kind] = BuildArchetype(kind, builder);
     }
+    // Builder director role: both content families use the same construction recipes.
+    public static ZombieArchetype BuildArchetype(ZombieKind kind, ZombieBuilder? builder = null)
+    {
+        builder ??= new NormalContent();
+        return kind switch
+        {
+            ZombieKind.Walker => builder.OfKind(kind).WithHealth(60).WithSpeed(70f)
+                .WithRadius(14f).WithXpReward(10).WithAttack(10, 0.65f).Build(),
+            ZombieKind.Runner => builder.OfKind(kind).WithHealth(35).WithSpeed(125f)
+                .WithRadius(14f).WithXpReward(15).WithAttack(8, 0.5f).Build(),
+            ZombieKind.Brute => builder.OfKind(kind).WithHealth(150).WithSpeed(48f)
+                .WithRadius(22f).WithXpReward(25).WithAttack(20, 1.2f).Build(),
+            _ => throw new ArgumentOutOfRangeException(nameof(kind))
+        };
+    }
+
     public Player CreatePlayer(Vector2 position) => new(++_nextId, position);
 
     public Zombie CreateZombie(Vector2 position, ZombieKind kind, int wave)
     {
-        var archetype = _registry.Get(kind);
+        var archetype = _templates[kind].Clone();
         archetype.Health += (wave - 1) * 5;
         archetype.Speed += Math.Min(wave - 1, 20) * 2;
         return ZombieCreators[kind].Create(++_nextId, position, archetype);

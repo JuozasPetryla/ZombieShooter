@@ -1,117 +1,115 @@
 # Zombie Shooter
 
-A playable C# / MonoGame top-down survival shooter. The arena and characters use
-procedural shapes and a built-in bitmap font, so no external art is required.
+C# / MonoGame top-down survival shooter with solo, local co-op, and a local
+TCP server for two clients. Graphics and text are drawn procedurally; no asset
+pipeline or external artwork is needed.
 
-## Build and run
+## Run
 
-Requires .NET 8 SDK (or a compatible newer SDK), a graphical desktop with OpenGL,
-and internet access for the first dependency restore. MonoGame 3.8.4.1 DesktopGL
-supports Windows, Linux, and macOS; see its [platform setup instructions](https://docs.monogame.net/articles/getting_started/)
-for native dependencies.
+Requires .NET 8 (or a compatible newer SDK) and an OpenGL desktop. Restore needs
+NuGet access or cached packages.
 
 ```sh
-dotnet restore ZombieShooter.sln
-dotnet tool restore
-dotnet build ZombieShooter.sln --no-restore
+dotnet build ZombieShooter.sln -m:1
 dotnet run --project src/ZombieShooter --no-build
 ```
 
-If the aiming does not work and is locked at a certain angle run this command
-```sh
-SDL_VIDEODRIVER=x11 dotnet run --project src/ZombieShooter --no-build
-```
-
-Run the headless regression checks without opening a window:
+If mouse aiming is stuck on Linux, prefix the run command with `SDL_VIDEODRIVER=x11`.
+Run headless regression checks, including local TCP integration tests:
 
 ```sh
 dotnet run --project tests/ZombieShooter.Core.Tests
 ```
 
-This is a dependency-free console test harness: failed assertions exit with an
-error. It checks movement, boundaries, invalid inputs, swept projectile hits,
-wave progression, events, death, co-op revival, session isolation, cooldowns,
-weapon expiration, both pickup effects, and command/reload/weapon-selection behavior.
+For network play, start the server, then run the client command in two terminals:
 
-## Controls and rules
+```sh
+dotnet run --project src/ZombieShooter.Server -- 7777 normal
+dotnet run --project src/ZombieShooter -- --connect 127.0.0.1 7777
+```
 
-| Action | Control |
-| --- | --- |
-| Player 1 move | WASD |
-| Player 1 aim / fire | Mouse / hold left button |
-| Player 1 reload / select pistol or shotgun | E / 1 or 2 |
-| Player 2 move / aim / fire | Arrow keys / IJKL / Enter or right Ctrl |
-| Player 2 reload / select pistol or shotgun | O / 9 or 0 |
-| Player 2 with a connected controller | Left stick / right stick / right trigger |
-| Player 2 controller reload / select pistol or shotgun | X / left or right shoulder |
-| Pause | P (also freezes when the window loses focus) |
-| Restart | R |
-| Switch solo / two-player local co-op | F2 (starts a new session) |
-| Exit | Escape |
+Server modes: `normal`, `nightmare`, `horde`, `brute`. The server listens on
+loopback, waits for both players, and pauses when either disconnects. A replacement
+client takes the vacant slot. Restart the server and clients for a new match.
 
-Hold fire for continuous shooting. The pistol has 12 rounds and a 1.2-second
-reload; the shotgun has 6 shells and a 1.8-second reload. Reserve ammo is unlimited,
-but empty magazines require manual reload. Switching cancels reload and preserves
-each magazine. The shotgun timer continues while the pistol is selected. Zombies pursue the
-nearest living player. Contact costs 10 health with a short damage cooldown.
-Kill all enemies to advance; waves get larger and spawn faster. Runners join
-from wave 3, brutes from wave 5. Kills award shared score and sometimes drop a
-health kit (+35, capped at 100) or a shotgun (15 seconds). Health kits remain
-available when the touching player is already healthy. Items expire after 18
-seconds. Co-op doubles the wave size; a fallen player returns with 50 health at
-the next wave if their teammate survives. There is no friendly fire. The run
-ends when every player falls.
+## Controls
 
-## Design patterns
+| Action | P1 / network player | Local P2 |
+|---|---|---|
+| Move | WASD | Arrows / left stick |
+| Aim / fire | Mouse / left button | IJKL / Enter or right Ctrl; right stick / trigger |
+| Reload | E | O / controller X |
+| Pistol / shotgun | 1 / 2 | 9 / 0; LB / RB |
+| Undo last valid command | Z | N |
+| Pause / restart | P / R | Shared |
+| Solo / co-op | F2 | Starts a new local session |
+| Mode | F3 | Normal → Nightmare → Horde → Brute; starts a new session |
+| Exit | Escape | Shared |
 
-Use the earliest pattern that solves a real requirement; the numbered list is
-not an implementation checklist.
+P, R, F2 and F3 apply only to local games. In network play the server chooses the
+mode. Losing focus pauses local play and clears outgoing network input.
 
-| Pattern | Decision and implementation |
-| --- | --- |
-| 01 Singleton | Deliberately omitted. One current session does not require global access. Independent sessions are useful for tests, restarts, and future server matches. |
-| 02 Factory | `EntityFactory` centralizes entity construction, session-local IDs, and zombie variants/stats. This is a simple factory, not the inheritance-based GoF Factory Method. |
-| 03 Abstract Factory | Defer until modes/themes need matching families of enemies, weapons, and pickups. A single family does not yet justify it. |
-| 04 Strategy | `IGameMode` and `SurvivalMode` define wave size, composition, and pacing; `GameSession` accepts a replacement strategy. |
-| 05 Observer | `GameSession.EventOccurred` publishes combat and wave events. The MonoGame HUD subscribes without adding rendering dependencies to the core. |
-| 06 Builder | `ZombieBuilder` constructs configurable `ZombieArchetype` instances step by step. `ZombieDirector` provides reusable presets for walkers, runners, and brutes, while validation in Build() prevents invalid configurations.
-| 07 Prototype | `IPrototype<T>`, `ZombieArchetype`, and `AttackProfile` provide cloning of existing templates. `ArchetypeRegistry` stores zombie prototypes and returns clones when new zombies are created, allowing wave-specific tuning without modifying the registered templates.
-| 08 Decorator | `WeaponDecorator` wraps `IWeapon` implementations to add weapon upgrades without modifying the original weapon classes. `DamageBonus`, `FireRateBonus`, and `MagazineSizeBonus` provide composable damage, fire-rate, and magazine-size modifications.
-| 09 Command | `IGameCommand`, `ReloadCommand`, and `SelectWeaponCommand` queue discrete actions; `GameSession` validates and executes them in FIFO order on the next tick. |
+Kill each wave, collect health and temporary shotguns, and survive. Reload is
+manual; reserve ammo is unlimited. Surviving players receive three stacked weapon
+upgrades after each wave; a fallen partner revives if the other survives. The
+match ends when everyone dies. The high score lasts for the process lifetime.
 
-See [implementation status and pattern locations](docs/IMPLEMENTATION.md) for the
-complete pattern inventory, Command participants, execution rules, and limitations.
+## Code and coursework
 
-Builder is used for flexible construction of zombie archetypes with optional
-configuration and validation. Prototype provides reusable zombie templates that
-can be cloned and modified for individual spawns. Decorator allows weapon
-properties to be upgraded by wrapping existing IWeapon instances, so multiple
-bonuses can be combined without changing the base weapon implementations,
-later  stackable item effects can be added.
+- `ZombieShooter.Core`: simulation, design patterns, snapshots and TCP networking.
+- `ZombieShooter`: desktop input, drawing and HUD.
+- `ZombieShooter.Server`: server entry point.
+- `ZombieShooter.Core.Tests`: regression tests and the Prototype experiment.
 
-Command currently handles local queued actions; timestamped input, replays, and
-network transport are not implemented.
+[Requirements and pattern mapping](docs/PROJEKTO_APRASAS.md) are the single source
+for coursework criteria. All 12 documented patterns remain. `NormalContent` and
+`NightmareContent` each serve as an Abstract Factory, a wave Strategy, a drop
+policy, and a concrete Builder. That keeps two families, three product interfaces
+per family, two builders and four strategies with fewer classes. Stateless wave
+and drop products can share the family object; entity construction uses a fresh
+builder. `GameFacade.CreatePreset` supplies the same four choices to desktop and
+server.
 
-## Architecture and future work
+The desktop game and server also implement `INotificationOutput`: the same hosts
+are Facade clients, Observer subscribers, and the two Bridge output implementations.
+`WeaponStats` supplies immutable pistol/shotgun defaults and snapshot weapon data;
+the three Decorator classes still wrap `IWeapon`. These shared roles remove four
+classes without reducing the documented pattern participant counts.
 
-- `src/ZombieShooter.Core`: pure .NET simulation with `System.Numerics`; owns
-  entities, combat, pickups, waves, seeded randomness, and game rules. Public
-  collections are read-only views and entity mutation is internal.
-- `src/ZombieShooter`: MonoGame host, device input, procedural rendering, and HUD.
-  Runs the simulation at a fixed 60 Hz. Pause is a host responsibility.
-- `tests/ZombieShooter.Core.Tests`: headless checks with a small alternate mode.
+[Current class diagram](docs/uml/01-current-classes.svg)
+([PlantUML](docs/uml/01-current-classes.puml)) ·
+[Use cases](docs/uml/00-use-cases.puml) ·
+[Prototype experiment](docs/PROTOTYPE_REPORT.md)
 
-Every player has a stable ID within a session. The host translates devices into
-`PlayerInput` values keyed by ID. A future authoritative server can feed the same
-boundary, but online multiplayer is **not implemented**: it still needs transport,
-input validation/rate limiting, tick and match IDs, snapshots, interpolation,
-join/disconnect handling, and potentially prediction/reconciliation. Seeded
-randomness helps reproduce tests; this is not a cross-platform deterministic
-lockstep guarantee.
+The class diagram includes all source-declared types under `src/`, with fields,
+properties, events, constructors, and methods at every visibility level. Records,
+enums, transport types, and drawing helpers are included. Inherited members are
+shown on their base types; partial classes are merged. C# types, parameter defaults,
+accessor visibility, and member modifiers are retained. Captured primary-constructor
+parameters are marked explicitly. Arrows focus on inheritance, interface
+implementations, ownership, stored-object references, and selected pattern
+interactions. Parameter/return-type dependencies and enum attribute arrows are
+omitted because the member signatures already show those types. All classes and
+members remain in the diagram. Associations show multiplicities at both ends,
+including optional references and collection bounds; inheritance and dependencies
+have no multiplicities. Multiplicities describe initialized valid states, with
+repeated field slots (such as pistol/shotgun) counted separately. The SVG is large and should be viewed with zoom.
 
-The first prototype uses an open arena and direct zombie pursuit. Maps with
-obstacles will need collision geometry and pathfinding; large hordes will need
-spatial indexing. Broader modes may need lifecycle/victory policies beyond the
-current wave strategy. Weapon definitions and richer item effects can be added
-when the weapon roster grows. Art, audio, menus, saving, and online play remain
-future work.
+Compiler-generated record methods/backing fields, implicit constructors, top-level
+entry-point statements, local variables/functions, and test code are outside this
+class model. External base types are shown without their members.
+
+Regenerate declarations and structural links with the SDK-based generator (no
+additional NuGet packages), then render with PlantUML. Explicit ownership and
+behavioral links are maintained in `docs/uml/class-relationships.puml.inc`:
+
+```sh
+dotnet run --project tools/UmlGenerator
+python3 tools/render-uml.py
+```
+
+For a standalone PlantUML jar, use `python3 tools/render-uml.py --jar /path/to/plantuml.jar`.
+The renderer adds a solid white SVG canvas so text and arrows remain readable in
+dark image viewers.
+
+Desktop rendering and physical controller input require manual validation.

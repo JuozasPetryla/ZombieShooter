@@ -2,15 +2,9 @@ using System.Numerics;
 
 namespace ZombieShooter.Core;
 
-public sealed record WeaponSnapshot(WeaponKind Kind, int Damage, float FireCooldown, int Pellets,
-    int MagazineSize, float ReloadTime) : IWeapon
-{
-    public static WeaponSnapshot From(IWeapon weapon) => new(weapon.Kind, weapon.Damage,
-        weapon.FireCooldown, weapon.Pellets, weapon.MagazineSize, weapon.ReloadTime);
-}
 public sealed record PlayerSnapshot(int Id, float X, float Y, float AimX, float AimY, int Health,
     WeaponKind Weapon, float WeaponTime, int PistolAmmo, int ShotgunAmmo, float ReloadRemaining,
-    WeaponSnapshot Pistol, WeaponSnapshot Shotgun);
+    WeaponStats Pistol, WeaponStats Shotgun);
 public sealed record ZombieSnapshot(int Id, float X, float Y, ZombieKind Kind, int Health, float Speed,
     float Radius, int Damage, float Cooldown, int Reward);
 public sealed record BulletSnapshot(int Id, float X, float Y, float Vx, float Vy, int OwnerId, int Damage);
@@ -27,7 +21,7 @@ public sealed partial class GameSession
         State, Wave, Score, _remainingSpawns, IntermissionRemaining,
         _players.Select(p => new PlayerSnapshot(p.Id, p.Position.X, p.Position.Y, p.Aim.X, p.Aim.Y,
             p.Health, p.Weapon, p.WeaponTime, p.PistolAmmo, p.ShotgunAmmo, p.ReloadRemaining,
-            WeaponSnapshot.From(p.PistolGear), WeaponSnapshot.From(p.ShotgunGear))).ToArray(),
+            WeaponStats.From(p.PistolGear), WeaponStats.From(p.ShotgunGear))).ToArray(),
         _zombies.Select(z => new ZombieSnapshot(z.Id, z.Position.X, z.Position.Y, z.Kind, z.Health,
             z.Speed, z.Radius, z.Attack.Damage, z.Attack.Cooldown, z.XpReward)).ToArray(),
         _bullets.Select(b => new BulletSnapshot(b.Id, b.Position.X, b.Position.Y, b.Velocity.X,

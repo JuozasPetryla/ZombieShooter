@@ -12,12 +12,11 @@ public sealed partial class GameSession
     private readonly Random _random;
     private readonly IGameMode _mode;
     private readonly IDropPolicy _drops;
-    private readonly Dictionary<int, IGameCommand> _lastCommands = new();
     private readonly List<Player> _players = [];
     private readonly List<Zombie> _zombies = [];
     private readonly List<Bullet> _bullets = [];
     private readonly List<Pickup> _pickups = [];
-    private readonly Queue<IGameCommand> _commands = new();
+    internal CommandDispatcher Commands { get; }
     private float _spawnTimer;
     private int _remainingSpawns;
 
@@ -36,7 +35,8 @@ public sealed partial class GameSession
     public GameSession(int playerCount = 1, int seed = 1, IGameMode? mode = null, IContentFactory? content = null)
     {
         if (playerCount is < 1 or > 2) throw new ArgumentOutOfRangeException(nameof(playerCount));
-        content ??= new NormalContentFactory();
+        Commands = new CommandDispatcher(this);
+        content ??= new NormalContent();
         _factory = content.CreateEntityFactory();
         _mode = mode ?? content.CreateGameMode();
         _drops = content.CreateDropPolicy();
@@ -51,13 +51,7 @@ public sealed partial class GameSession
     }
 
     /// <summary>Queue an intent for the next positive-duration tick, in arrival order.</summary>
-    public bool EnqueueCommand(IGameCommand command)
-    {
-        ArgumentNullException.ThrowIfNull(command);
-        if (State == SessionState.GameOver || _commands.Count >= 64) return false;
-        _commands.Enqueue(command);
-        return true;
-    }
+    public bool EnqueueCommand(IGameCommand command) => Commands.Queue(command);
 
     // Receiver operations are also validated when commands are executed directly.
     public bool TryReload(int playerId)
@@ -84,15 +78,11 @@ public sealed partial class GameSession
         return true;
     }
 
-    internal void DiscardPendingCommands()
-    {
-        _commands.Clear();
-        _lastCommands.Clear();
-    }
+    internal void DiscardPendingCommands() => Commands.Clear();
 
     public bool UndoLast(int playerId)
     {
-        if (!_lastCommands.Remove(playerId, out var command) || !command.Undo(this)) return false;
+        if (!Commands.UndoLast(playerId)) return false;
         EventOccurred?.Invoke(new("ActionUndone", playerId));
         return true;
     }
@@ -126,13 +116,7 @@ public sealed partial class GameSession
             }
         }
         // Apply discrete actions before continuous input (including held fire).
-        int commandCount = _commands.Count;
-        for (int i = 0; i < commandCount; i++)
-        {
-            var command = _commands.Dequeue();
-            if (command.Execute(this) && command is not UndoCommand)
-                _lastCommands[command.PlayerId] = command;
-        }
+        Commands.ExecutePending();
         foreach (var player in _players.Where(p => p.IsAlive))
         {
             inputs.TryGetValue(player.Id, out var input);
@@ -170,8 +154,7 @@ public sealed partial class GameSession
         if (_players.All(p => !p.IsAlive))
         {
             State = SessionState.GameOver;
-            _commands.Clear();
-            _lastCommands.Clear();
+            Commands.Clear();
             EventOccurred?.Invoke(new("GameOver", Value: Score));
         }
         else if (State == SessionState.Active && EnemiesRemaining == 0)

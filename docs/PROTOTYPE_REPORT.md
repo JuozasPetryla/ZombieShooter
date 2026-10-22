@@ -1,10 +1,10 @@
 # Prototype: deep ir shallow kopijų palyginimas
 
-Užfiksuota 2026-10-15 vykdant `ZombieShooter.Core.Tests` su .NET 8, Linux x64. Galutinis testų paleidimas: **81 patikra sėkminga**.
+Užfiksuota 2026-10-15 vykdant `ZombieShooter.Core.Tests` su .NET 8, Linux x64. Tai istorinio matavimo duomenys; dabartinė testų programa kiekvieną kartą spausdina naujus rezultatus.
 
 ## Eksperimentas
 
-1. `original = ZombieDirector.Walker()` sukuria archetipą ir jo AttackProfile (`Damage = 10`).
+1. `original = EntityFactory.BuildArchetype(ZombieKind.Walker)` sukuria archetipą ir jo AttackProfile (`Damage = 10`).
 2. `shallow = original.ShallowClone()` kopijuoja archetipą, bet išsaugo AttackProfile nuorodą.
 3. `deep = original.Clone()` kopijuoja ir archetipą, ir AttackProfile.
 4. `shallow.Attack.Damage = 77` pakeičia shallow bei originalo žalą, tačiau nepakeičia deep kopijos.
@@ -40,4 +40,4 @@ dotnet run --project tests/ZombieShooter.Core.Tests
 
 Kadangi ši programa vykdo ir serverio patikras, reikia leisti vietinius TCP lizdus. Programa pati spausdina naują adresų ir sąnaudų ataskaitą; šio dokumento automatiškai neperrašo.
 
-Demonstracijai `ZombieArchetype.Clone()` metode laikinai pakeisti `Attack = Attack.Clone()` į `Attack = Attack`: gilioji kopija tampa negili, jos nuorodų ir būsenos izoliacijos testai nepraeina. Po demonstracijos atkurti pirminę eilutę. Žaidimas naudoja gilią kopiją per `ArchetypeRegistry.Get`, kad vieno zombio kūrimas nepakeistų kitų prototipų.
+Demonstracijai `ZombieArchetype.Clone()` metode laikinai pakeisti `Attack = Attack.Clone()` į `Attack = Attack`: gilioji kopija tampa negili, jos nuorodų ir būsenos izoliacijos testai nepraeina. Po demonstracijos atkurti pirminę eilutę. Žaidimas naudoja gilią kopiją per `EntityFactory.CreateZombie`, kad vieno zombio kūrimas nepakeistų kitų prototipų.

@@ -6,7 +6,7 @@ using ZombieShooter.Core.Commands;
 namespace ZombieShooter.Core.Networking;
 
 // One authoritative two-player match. Both connections are required to advance.
-public sealed class GameServer : IAsyncDisposable
+public sealed class GameServer : IAsyncDisposable, INotificationOutput
 {
     private readonly TcpListener _listener;
     private readonly CancellationTokenSource _stop = new();
@@ -18,18 +18,21 @@ public sealed class GameServer : IAsyncDisposable
     private Task? _accept;
     private Task? _ticks;
     public int Port => ((IPEndPoint)_listener.LocalEndpoint).Port;
-    public GameServer(int port = 7777, IContentFactory? content = null, IGameMode? mode = null)
+    public GameServer(int port = 7777, GamePreset preset = GamePreset.Normal)
     {
         _listener = new TcpListener(IPAddress.Loopback, port);
-        _game = new GameFacade(2, Environment.TickCount, mode, content);
-        var wave = new WaveNotification(new ConsoleNotificationOutput());
-        var pickup = new PickupNotification(new ConsoleNotificationOutput());
+        _game = GameFacade.CreatePreset(preset, 2, Environment.TickCount);
+        var wave = new WaveNotification(this);
+        var pickup = new PickupNotification(this);
         _game.Session.EventOccurred += e =>
         {
             if (e.Name is "WaveStarted" or "WaveCleared" or "WeaponsUpgraded") wave.Show(e);
             else if (e.Name == "PickupCollected") pickup.Show(e);
         };
     }
+    // Bridge output and Observer subscriber share the existing server host.
+    public void Write(string text) => Console.WriteLine(text);
+
     public void Start()
     {
         if (_accept is not null) throw new InvalidOperationException("Server already started.");

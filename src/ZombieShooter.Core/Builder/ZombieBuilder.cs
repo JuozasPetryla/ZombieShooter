@@ -1,8 +1,6 @@
 namespace ZombieShooter.Core;
 
-/// <summary>
-/// Builder pattern: provides a flexible solution to constructing complex objects step by step. It allows for the creation of different representations of an object using the same construction process, making it easier to manage and customize the creation of objects with many optional parameters or configurations.
-/// </summary>
+// Builder: validates a configurable archetype before creating it.
 public abstract class ZombieBuilder
 {
     private ZombieKind _kind = ZombieKind.Walker;
@@ -43,18 +41,5 @@ public abstract class ZombieBuilder
             XpReward = _xpReward,
             Attack = new AttackProfile { Damage = _attackDamage, Cooldown = _attackCooldown }
         };
-    }
-}
-// Two concrete builders share the same director recipes but produce distinct representations.
-public sealed class StandardZombieBuilder : ZombieBuilder { }
-
-public sealed class ArmoredZombieBuilder : ZombieBuilder
-{
-    public override ZombieArchetype Build()
-    {
-        var result = base.Build();
-        result.Health = (int)(result.Health * 1.5f);
-        result.Speed *= 1.25f;
-        return result;
     }
 }

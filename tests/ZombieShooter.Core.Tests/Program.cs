@@ -152,37 +152,93 @@ Check(factory.CreateZombie(Vector2.Zero, ZombieKind.Walker, 1) is Walker &&
     factory.CreateZombie(Vector2.Zero, ZombieKind.Runner, 1) is Runner &&
     factory.CreateZombie(Vector2.Zero, ZombieKind.Brute, 1) is Brute,
     "Factory Method produces three concrete product classes");
-var normal = new NormalContentFactory();
-var nightmare = new NightmareContentFactory();
-Check(normal.CreateGameMode() is SurvivalMode && normal.CreateDropPolicy() is NormalDropPolicy &&
-    nightmare.CreateGameMode() is NightmareMode && nightmare.CreateDropPolicy() is NightmareDropPolicy &&
+var normal = new NormalContent();
+var nightmare = new NightmareContent();
+Check(normal.CreateGameMode() is NormalContent && normal.CreateDropPolicy() is NormalContent &&
+    nightmare.CreateGameMode() is NightmareContent && nightmare.CreateDropPolicy() is NightmareContent &&
     nightmare.CreateEntityFactory() is NightmareEntityFactory, "Abstract factories provide three matching products per family");
-Check(new IGameMode[] { new SurvivalMode(), new NightmareMode(), new HordeMode(), new BruteMode() }
+foreach (var content in new IContentFactory[] { normal, nightmare })
+{
+    // Builder state must not leak into a new match or the stateless product roles.
+    var rules = content.CreateGameMode();
+    var drops = content.CreateDropPolicy();
+    int expectedCount = rules.EnemyCount(1, 1);
+    var expectedDrop = drops.Roll(new Random(42));
+    ((ZombieBuilder)content).WithSpeed(float.NaN).WithHealth(1);
+    var first = content.CreateEntityFactory().CreateZombie(Vector2.Zero, ZombieKind.Walker, 1);
+    first.Attack.Damage = 999;
+    var second = content.CreateEntityFactory().CreateZombie(Vector2.Zero, ZombieKind.Walker, 1);
+    Check(ReferenceEquals(content, rules) && ReferenceEquals(content, drops) &&
+        rules.EnemyCount(1, 1) == expectedCount && drops.Roll(new Random(42)) == expectedDrop &&
+        second.Attack.Damage == 10 && second.Health == (content is NightmareContent ? 90 : 60) &&
+        second.Speed == (content is NightmareContent ? 87.5f : 70f),
+        $"{content.GetType().Name} shares stateless roles and isolates builder and session state");
+}
+Check(new IGameMode[] { new NormalContent(), new NightmareContent(), new HordeMode(), new BruteMode() }
     .Select(m => m.GetType()).Distinct().Count() == 4, "Four production strategies available");
-Check(new HordeMode().EnemyCount(1, 1) > new SurvivalMode().EnemyCount(1, 1) &&
+Check(new HordeMode().EnemyCount(1, 1) > new NormalContent().EnemyCount(1, 1) &&
     new BruteMode().ChooseZombie(1, new Random(1)) == ZombieKind.Brute, "Additional strategies change gameplay");
-var standard = ZombieDirector.Walker(new StandardZombieBuilder());
-var armored = ZombieDirector.Walker(new ArmoredZombieBuilder());
+// Exercise the shared desktop/server selection through actual wave spawning.
+foreach (var preset in Enum.GetValues<GamePreset>())
+{
+    var game = GameFacade.CreatePreset(preset);
+    var expected = preset switch
+    {
+        GamePreset.Normal => (Count: 7, Health: 60, Kind: ZombieKind.Walker),
+        GamePreset.Nightmare => (Count: 10, Health: 90, Kind: ZombieKind.Walker),
+        GamePreset.Horde => (Count: 15, Health: 60, Kind: ZombieKind.Walker),
+        _ => (Count: 3, Health: 150, Kind: ZombieKind.Brute)
+    };
+    for (int i = 0; i < 60 && game.Session.Wave == 0; i++) game.Tick(0.1f);
+    Check(game.Session.Wave == 1 && game.Session.EnemiesRemaining == expected.Count &&
+        game.Session.Zombies[0].Kind == expected.Kind && game.Session.Zombies[0].Health == expected.Health,
+        $"{preset} preset selects matching content and wave rules");
+}
+var standard = EntityFactory.BuildArchetype(ZombieKind.Walker, new NormalContent());
+var armored = EntityFactory.BuildArchetype(ZombieKind.Walker, new NightmareContent());
 Check(standard.Health == 60 && armored.Health == 90 && armored.Speed == 87.5f,
     "Director uses two concrete builders for distinct representations");
 bool invalidBuild = false;
-try { new StandardZombieBuilder().WithSpeed(float.NaN).Build(); }
+try { new NormalContent().WithSpeed(float.NaN).Build(); }
 catch (InvalidOperationException) { invalidBuild = true; }
 Check(invalidBuild, "Builder rejects non-finite properties");
-var original = ZombieDirector.Walker();
+var original = EntityFactory.BuildArchetype(ZombieKind.Walker);
 var shallow = original.ShallowClone();
 var deep = original.Clone();
 Check(!ReferenceEquals(original, shallow) && ReferenceEquals(original.Attack, shallow.Attack) &&
     !ReferenceEquals(original.Attack, deep.Attack), "Prototype shallow shares and deep separates nested attack");
 shallow.Attack.Damage = 77;
 Check(original.Attack.Damage == 77 && deep.Attack.Damage == 10, "Nested mutation demonstrates clone distinction");
-var registry = new ArchetypeRegistry();
-registry.Register(original);
-registry.Get(ZombieKind.Walker).Attack.Damage = 123;
-Check(registry.Get(ZombieKind.Walker).Attack.Damage == 77, "Registry spawns isolated deep copies");
-IWeapon decorated = new MagazineSizeBonus(new FireRateBonus(new DamageBonus(new Pistol(), 5), 0.5f), 2);
+var spawned = factory.CreateZombie(Vector2.Zero, ZombieKind.Walker, 4);
+spawned.Attack.Damage = 123;
+var nextSpawn = factory.CreateZombie(Vector2.Zero, ZombieKind.Walker, 1);
+Check(nextSpawn.Attack.Damage == 10 && nextSpawn.Health == 60 && nextSpawn.Speed == 70,
+    "Factory clones templates before per-spawn mutation and wave scaling");
+foreach (var kind in Enum.GetValues<ZombieKind>())
+{
+    var template = EntityFactory.BuildArchetype(kind);
+    var tougher = EntityFactory.BuildArchetype(kind, new NightmareContent());
+    Check(template.Kind == kind && tougher.Kind == kind &&
+        tougher.Health == (int)(template.Health * 1.5f) && tougher.Speed == template.Speed * 1.25f &&
+        tougher.Attack.Damage == template.Attack.Damage,
+        $"Shared {kind} recipe preserves both content families");
+}
+IWeapon decorated = new MagazineSizeBonus(new FireRateBonus(new DamageBonus(WeaponStats.Pistol, 5), 0.5f), 2);
 Check(decorated.Damage == 40 && Math.Abs(decorated.FireCooldown - 0.09f) < 0.0001f &&
     decorated.MagazineSize == 14, "Three decoration levels compose independently");
+// Shared immutable defaults must remain unchanged when one player's weapon is decorated.
+var weaponSession = new GameSession(2);
+weaponSession.Players[0].PistolGear = decorated;
+Check(weaponSession.Players[1].PistolGear.Damage == 35 && WeaponStats.Pistol.Damage == 35 &&
+    WeaponStats.Pistol.MagazineSize == 12 && WeaponStats.Shotgun.Damage == 25,
+    "Decorating one player leaves shared weapon defaults and the other player unchanged");
+var weaponJson = System.Text.Json.JsonSerializer.Serialize(weaponSession.CaptureSnapshot());
+var weaponReplica = new GameSession(2);
+weaponReplica.ApplySnapshot(System.Text.Json.JsonSerializer.Deserialize<SessionSnapshot>(weaponJson)!);
+Check(WeaponStats.From(weaponReplica.Players[0].PistolGear) == WeaponStats.From(decorated) &&
+    WeaponStats.From(weaponReplica.Players[1].PistolGear) == WeaponStats.Pistol &&
+    WeaponStats.From(weaponReplica.Players[0].ShotgunGear) == WeaponStats.Shotgun,
+    "Weapon stats preserve all base and decorated properties across the JSON snapshot boundary");
 Check(events.Count(e => e.Name == "WaveCleared") == 1, "WaveCleared is published exactly once");
 Check(shooter.PistolGear.MagazineSize == 13 && shooter.PistolGear.Damage == 40,
     "Wave completion applies three actual weapon decorators");
@@ -207,22 +263,23 @@ undo.EnqueueCommand(new SelectWeaponCommand(up.Id, WeaponKind.Shotgun));
 undo.Update(dt, new Dictionary<int, PlayerInput> { [up.Id] = new(Vector2.Zero, Vector2.UnitX, true) });
 Check(!undo.UndoLast(up.Id), "Undo rejected after firing changes state");
 var textOutput = new List<string>();
-INotificationOutput hud = new HudNotificationOutput(textOutput.Add);
-new WaveNotification(hud).Show(new("WaveStarted", Value: 3));
-new PickupNotification(hud).Show(new("PickupCollected", Value: (int)PickupKind.Health));
-Check(textOutput.SequenceEqual(new[] { "WAVE 3", "HEALTH +35" }), "Both Bridge abstractions use HUD implementation");
+INotificationOutput output = new RecordingOutput(textOutput);
+new WaveNotification(output).Show(new("WaveStarted", Value: 3));
+new PickupNotification(output).Show(new("PickupCollected", Value: (int)PickupKind.Health));
+Check(textOutput.SequenceEqual(new[] { "WAVE 3", "HEALTH +35" }), "Both Bridge abstractions format notifications through the output contract");
 var oldOut = Console.Out;
 using (var capture = new StringWriter())
 {
     Console.SetOut(capture);
     try
     {
-        new WaveNotification(new ConsoleNotificationOutput()).Show(new("WaveStarted", Value: 3));
-        new PickupNotification(new ConsoleNotificationOutput()).Show(new("PickupCollected", Value: (int)PickupKind.Health));
+        await using var outputServer = new GameServer(0);
+        new WaveNotification(outputServer).Show(new("WaveStarted", Value: 3));
+        new PickupNotification(outputServer).Show(new("PickupCollected", Value: (int)PickupKind.Health));
     }
     finally { Console.SetOut(oldOut); }
     Check(capture.ToString().Contains("WAVE 3") && capture.ToString().Contains("HEALTH +35"),
-        "Both Bridge abstractions use console implementation");
+        "Server host is the console Bridge implementation for both abstractions");
 }
 var facade = new GameFacade(mode: new TestMode());
 facade.SetInput(facade.Session.Players[0].Id, new(Vector2.UnitX, Vector2.UnitX, true));
@@ -240,7 +297,7 @@ Check(replica.Wave == facade.Session.Wave && replica.Players[0].Position == faca
 
 var pelletSession = new GameSession();
 var pelletPlayer = pelletSession.Players[0];
-pelletPlayer.PistolGear = new WeaponSnapshot(WeaponKind.Pistol, 20, 0.2f, 3, 12, 1.2f);
+pelletPlayer.PistolGear = new WeaponStats(WeaponKind.Pistol, 20, 0.2f, 3, 12, 1.2f);
 pelletSession.Update(dt, new Dictionary<int, PlayerInput> { [pelletPlayer.Id] = new(Vector2.Zero, Vector2.UnitX, true) });
 Check(pelletSession.Bullets.Count == 3, "Fire respects arbitrary weapon pellet count");
 foreach (var kind in new[] { ZombieKind.Runner, ZombieKind.Brute })
@@ -365,4 +422,9 @@ sealed class TestMode(ZombieKind kind = ZombieKind.Walker) : IGameMode
     public int EnemyCount(int wave, int playerCount) => 1;
     public float SpawnInterval(int wave) => 1;
     public ZombieKind ChooseZombie(int wave, Random random) => kind;
+}
+
+sealed class RecordingOutput(List<string> messages) : INotificationOutput
+{
+    public void Write(string text) => messages.Add(text);
 }

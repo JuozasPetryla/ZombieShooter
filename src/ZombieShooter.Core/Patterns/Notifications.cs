@@ -2,14 +2,6 @@ namespace ZombieShooter.Core;
 
 // Bridge: notification types and output mechanisms evolve independently.
 public interface INotificationOutput { void Write(string text); }
-public sealed class HudNotificationOutput(Action<string> display) : INotificationOutput
-{
-    public void Write(string text) => display(text);
-}
-public sealed class ConsoleNotificationOutput : INotificationOutput
-{
-    public void Write(string text) => Console.WriteLine(text);
-}
 public abstract class GameNotification(INotificationOutput output)
 {
     protected INotificationOutput Output { get; } = output;
