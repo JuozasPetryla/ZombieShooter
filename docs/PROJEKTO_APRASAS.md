@@ -14,7 +14,7 @@ per lokalų autoritetingą serverį. Paleidimas ir valdymas pateikti [README](..
 | Daiktai | Gydymas +35 iki 100 HP; pilnų HP žaidėjas jo nesunaudoja. Shotgun suteikiamas 15 s; daiktai išnyksta po 18 s. |
 | Bangos | Kita banga prasideda tik sunaikinus visus priešus ir pasibaigus pertraukai. Kiekvienas išgyvenęs žaidėjas gauna tris ginklų dekoratorius. |
 | Bendras žaidimas | Abu žaidėjai valdomi atskirai. Žuvęs partneris grįžta su 50 HP ir 2 s apsauga po įveiktos bangos. Visų žūtis baigia sesiją. |
-| Režimai | F3 cikliškai parenka Normal, Nightmare, Horde arba Brute ir pradeda naują sesiją. Tas pats pasirinkimas galimas serverio argumentu. |
+| Režimai | F3 cikliškai parenka Normal, Horde arba Brute ir pradeda naują sesiją. Tas pats pasirinkimas galimas serverio argumentu. |
 | Komandos | Perkrovimas ir ginklo parinkimas vykdomi FIFO per kitą teigiamos trukmės žingsnį. Kiekvienas žaidėjas gali atšaukti vieną paskutinę galiojančią komandą. |
 | Pauzė | P arba fokuso praradimas sustabdo vietinę simuliaciją. GameOver sustabdo simuliaciją ir atmeta komandas. |
 | Tinklas | Du klientai mato serverio būseną ir valdo tik savo žaidėją. Vienas klientas laukia; atsijungus sesija sustoja; laisvą vietą gali perimti nauja jungtis. Trečia jungtis atmetama. |
@@ -36,7 +36,6 @@ atkuriamoms patikroms, o ne skirtingų platformų lockstep garantijai.
 | Brute | 150 | 48 | 22 | 20 | 1,2 s | 25 |
 
 Kiekviena banga po pirmos prideda 5 HP ir 2 greičio vienetus (greičio priedas ≤40).
-Nightmare builderis prieš tai daugina bazinius HP iš 1,5 ir greitį iš 1,25.
 `XpReward` reiškia taškų atlygį; atskiros XP sistemos nėra.
 
 | Ginklas | Žala kulkai | Kulkos | Intervalas | Dėtuvė | Perkrovimas |
@@ -55,27 +54,28 @@ Tegu `w` – banga, `p` – žaidėjų skaičius:
 | Pasirinkimas / strategija | Priešų kiekis | Atsiradimo intervalas | Pertrauka | Sudėtis |
 |---|---|---|---|---|
 | Normal / NormalContent | `(4 + 3w) × p` | `max(0,18; 0,85 − 0,035w)` | 4 s | Runner nuo 3, Brute nuo 5 |
-| Nightmare / NightmareContent | `(6 + 4w) × p` | `max(0,12; 0,6 − 0,035w)` | 3 s | Runner nuo 2, Brute nuo 3 |
 | Horde / HordeMode | `(10 + 5w) × p` | `max(0,08; 0,35 − 0,01w)` | 2 s | Walker |
 | Brute / BruteMode | `(2 + w) × p` | `max(0,3; 1,2 − 0,04w)` | 5 s | Brute |
 
 Normal šeimoje daiktas iškrenta su 22 % tikimybe: pusė gydymas, pusė shotgun.
-Nightmare šeimoje tikimybė 15 %: 1/3 gydymas, 2/3 shotgun. Horde ir Brute naudoja
-Normal turinį. Atskiro šeimos parinkimo nėra.
+Horde ir Brute taip pat naudoja Normal turinį. Atskiro šeimos parinkimo nėra.
 
 ## 3. Šablonai ir dokumentuoti minimumai
 
-Šie skaičiai išlaikomi kaip projekto reikalavimai. Viena klasė gali atlikti kelių
-šablonų vaidmenis; dalyvių skaičius tikrinamas kiekvienam šablonui atskirai.
+Nightmare pašalintas sąmoningai paprastinant kodą. Trys ankstesni minimumai
+nebeįvykdomi: yra 3 iš 4 strategijų, 1 iš 2 turinio šeimų ir 1 iš 2 konkrečių
+builderių. Tai priimti nukrypimai, o ne visų ankstesnių reikalavimų įvykdymas.
+Viena klasė gali atlikti kelių šablonų vaidmenis; dalyviai skaičiuojami kiekvienam
+šablonui atskirai.
 
-| Šablonas | Kodo dalyviai ir paskirtis | Išlaikytas kriterijus |
+| Šablonas | Kodo dalyviai ir paskirtis | Dabartinė būsena ir kriterijus |
 |---|---|---|
 | Singleton | HighScores: Lazy instancija ir Interlocked maksimumas | Viena instancija; 10 000 lygiagrečių atnaujinimų patikra |
 | Factory Method | ZombieCreator; WalkerCreator, RunnerCreator, BruteCreator → Walker, Runner, Brute | 3 konkrečios produktų klasės |
-| Abstract Factory | IContentFactory; NormalContent, NightmareContent | 2 šeimos, po 3 produktus: EntityFactory, IGameMode, IDropPolicy |
-| Strategy | IGameMode; NormalContent, NightmareContent, HordeMode, BruteMode | 4 pasirenkamos strategijos |
+| Abstract Factory | IContentFactory; NormalContent | 1 šeima ir 3 produktai: EntityFactory, IGameMode, IDropPolicy. **2 šeimų minimumas neįvykdytas.** |
+| Strategy | IGameMode; NormalContent, HordeMode, BruteMode | 3 pasirenkamos strategijos. **4 strategijų minimumas neįvykdytas.** |
 | Observer | GameSession.EventOccurred → HUD, serverio pranešimai ir fasado įvykių eilė | Veikiantys prenumeratoriai ir sekų diagrama |
-| Builder | ZombieBuilder; NormalContent, NightmareContent; EntityFactory valdo receptus | 2 konkretūs builderiai, abu naudojami |
+| Builder | ZombieBuilder; NormalContent; EntityFactory valdo receptus | 1 naudojamas konkretus builderis. **2 builderių minimumas neįvykdytas.** |
 | Prototype | IPrototype, ZombieArchetype, AttackProfile; EntityFactory saugo ir klonuoja šablonus | Deep / shallow kopijos, nuorodos, adresai ir sąnaudos |
 | Decorator | IWeapon, WeaponStats, WeaponDecorator; DamageBonus, FireRateBonus, MagazineSizeBonus | 3 vienu metu taikomi sluoksniai |
 | Command | IGameCommand, PlayerCommand, ReloadCommand, SelectWeaponCommand, UndoCommand; CommandDispatcher | Būseną išsaugantis ir galiojimą tikrinantis Undo |
@@ -83,17 +83,15 @@ Normal turinį. Atskiro šeimos parinkimo nėra.
 | Facade | GameFacade → InputBuffer, CommandDispatcher, GameSession | 3 posistemės; desktop ir serveris – 2 klientai |
 | Bridge | GameNotification → WaveNotification, PickupNotification; INotificationOutput → ZombieShooterGame, GameServer | 2 abstrakcijos ir 2 realizacijos |
 
-`NormalContent` ir `NightmareContent` apjungia keturis susijusius vaidmenis:
-turinio gamyklą, bangų strategiją, daiktų kritimo taisykles ir konkretų builderį.
-Kiekviena gamykla sukuria savo EntityFactory variantą, o per `CreateGameMode()`
-ir `CreateDropPolicy()` grąžina save kaip du skirtingus produktų interfeisus.
-Taip išlieka trys produktų tipai, bet jiems nereikia trijų atskirų objektų.
+`NormalContent` apjungia keturis susijusius vaidmenis: turinio gamyklą, bangų
+strategiją, daiktų kritimo taisykles ir konkretų builderį. Gamykla sukuria
+EntityFactory, o per `CreateGameMode()` ir `CreateDropPolicy()` grąžina save kaip
+du skirtingus produktų interfeisus.
 
-`EntityFactory` naudoja naują NormalContent builderį; NightmareEntityFactory –
-naują NightmareContent builderį. Builderio konfigūracija nepriklauso nuo kitų
-sesijų, o bangų ir daiktų metodai neturi kintamos būsenos. HordeMode ir BruteMode
-lieka atskiros strategijos: iš viso keturios. Abiejų turinio klasių paveldėjimas
-iš ZombieBuilder išlaiko du konkrečius builderius.
+`EntityFactory` naudoja naują NormalContent builderį. Builderio konfigūracija
+nepriklauso nuo kitų sesijų, o bangų ir daiktų metodai neturi kintamos būsenos.
+HordeMode ir BruteMode lieka atskiros strategijos: iš viso trys. Nebėra antros
+turinio šeimos, antro builderio ar EntityFactory poklasio.
 
 `ZombieShooterGame` ir `GameServer` yra fasado klientai, Observer prenumeratoriai
 ir dvi Bridge išvesties realizacijos (`INotificationOutput`). Pranešimai priklauso

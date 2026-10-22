@@ -1,12 +1,10 @@
 ' Explicit ownership and behavioral relationships reviewed against the source.
 ZombieShooter_Core_NormalContent ..> ZombieShooter_Core_EntityFactory : creates
-ZombieShooter_Core_NightmareContent ..> ZombieShooter_Core_NightmareEntityFactory : creates
 ZombieShooter_Core_WalkerCreator ..> ZombieShooter_Core_Walker : creates
 ZombieShooter_Core_RunnerCreator ..> ZombieShooter_Core_Runner : creates
 ZombieShooter_Core_BruteCreator ..> ZombieShooter_Core_Brute : creates
 ZombieShooter_Core_Zombie "0..*" --> "1" ZombieShooter_Core_AttackProfile : Attack
 ZombieShooter_Core_EntityFactory "0..*" --> "3" ZombieShooter_Core_ZombieCreator : static ZombieCreators
-ZombieShooter_Core_NightmareEntityFactory ..> ZombieShooter_Core_NightmareContent
 ZombieShooter_Core_ZombieBuilder ..> ZombieShooter_Core_ZombieArchetype : builds
 ZombieShooter_Core_GameSession "0..*" --> "1" ZombieShooter_Core_IGameMode : mode
 ZombieShooter_Core_GameSession "0..*" --> "1" ZombieShooter_Core_IDropPolicy : drops

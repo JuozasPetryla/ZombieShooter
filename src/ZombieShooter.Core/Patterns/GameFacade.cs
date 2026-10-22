@@ -2,7 +2,7 @@ using ZombieShooter.Core.Commands;
 
 namespace ZombieShooter.Core;
 
-public enum GamePreset { Normal, Nightmare, Horde, Brute }
+public enum GamePreset { Normal, Horde, Brute }
 
 public sealed class InputBuffer
 {
@@ -22,11 +22,10 @@ public sealed class GameFacade
     private long _eventSequence;
     public GameSession Session { get; }
 
-    // Desktop and server expose the same four choices, without independent family overrides.
+    // Desktop and server expose the same three choices, without independent family overrides.
     public static GameFacade CreatePreset(GamePreset preset, int players = 1, int seed = 1) => preset switch
     {
         GamePreset.Normal => new(players, seed),
-        GamePreset.Nightmare => new(players, seed, content: new NightmareContent()),
         GamePreset.Horde => new(players, seed, mode: new HordeMode()),
         GamePreset.Brute => new(players, seed, mode: new BruteMode()),
         _ => throw new ArgumentOutOfRangeException(nameof(preset))

@@ -24,7 +24,7 @@ public abstract class ZombieBuilder
         return this;
     }
 
-    public virtual ZombieArchetype Build()
+    public ZombieArchetype Build()
     {
         if (_health <= 0) throw new InvalidOperationException("Health must be greater than 0.");
         if (!float.IsFinite(_speed) || _speed <= 0) throw new InvalidOperationException("Speed must be greater than 0.");

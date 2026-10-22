@@ -143,7 +143,7 @@ package "ZombieShooter.Core" {
     {field} +Position : Vector2 { get; internal set; }
     {field} +Radius : float { get; }
   }
-  class "EntityFactory" as ZombieShooter_Core_EntityFactory {
+  class "EntityFactory" as ZombieShooter_Core_EntityFactory <<sealed>> {
     {field} -{static} readonly ZombieCreators : IReadOnlyDictionary<ZombieKind, ZombieCreator>
     {field} -_nextId : int
     {field} -readonly _templates : Dictionary<ZombieKind, ZombieArchetype>
@@ -186,7 +186,6 @@ package "ZombieShooter.Core" {
   }
   enum "GamePreset" as ZombieShooter_Core_GamePreset {
     Normal
-    Nightmare
     Horde
     Brute
   }
@@ -277,20 +276,6 @@ package "ZombieShooter.Core" {
     {method} +MagazineSizeBonus(IWeapon inner, int bonus) <<primary constructor>>
     {field} -bonus : int <<captured parameter>>
     {field} +override MagazineSize : int { get; computed }
-  }
-  class "NightmareContent" as ZombieShooter_Core_NightmareContent <<sealed>> {
-    {method} +CreateEntityFactory() : EntityFactory
-    {method} +CreateGameMode() : IGameMode
-    {method} +CreateDropPolicy() : IDropPolicy
-    {method} +override Build() : ZombieArchetype
-    {field} +IntermissionSeconds : float { get; computed }
-    {method} +EnemyCount(int wave, int playerCount) : int
-    {method} +SpawnInterval(int wave) : float
-    {method} +ChooseZombie(int wave, Random random) : ZombieKind
-    {method} +Roll(Random random) : PickupKind?
-  }
-  class "NightmareEntityFactory" as ZombieShooter_Core_NightmareEntityFactory <<sealed>> {
-    {method} +NightmareEntityFactory()
   }
   class "NormalContent" as ZombieShooter_Core_NormalContent <<sealed>> {
     {method} +CreateEntityFactory() : EntityFactory
@@ -462,7 +447,7 @@ package "ZombieShooter.Core" {
     {method} +WithRadius(float radius) : ZombieBuilder
     {method} +WithXpReward(int xpReward) : ZombieBuilder
     {method} +WithAttack(int attackDamage, float attackCooldown) : ZombieBuilder
-    {method} +virtual Build() : ZombieArchetype
+    {method} +Build() : ZombieArchetype
   }
   abstract class "ZombieCreator" as ZombieShooter_Core_ZombieCreator {
     {method} +{abstract} Create(int id, Vector2 position, ZombieArchetype archetype) : Zombie
@@ -602,13 +587,11 @@ package "External base types (members omitted)" {
 }
 ' Explicit ownership and behavioral relationships reviewed against the source.
 ZombieShooter_Core_NormalContent ..> ZombieShooter_Core_EntityFactory : creates
-ZombieShooter_Core_NightmareContent ..> ZombieShooter_Core_NightmareEntityFactory : creates
 ZombieShooter_Core_WalkerCreator ..> ZombieShooter_Core_Walker : creates
 ZombieShooter_Core_RunnerCreator ..> ZombieShooter_Core_Runner : creates
 ZombieShooter_Core_BruteCreator ..> ZombieShooter_Core_Brute : creates
 ZombieShooter_Core_Zombie "0..*" --> "1" ZombieShooter_Core_AttackProfile : Attack
 ZombieShooter_Core_EntityFactory "0..*" --> "3" ZombieShooter_Core_ZombieCreator : static ZombieCreators
-ZombieShooter_Core_NightmareEntityFactory ..> ZombieShooter_Core_NightmareContent
 ZombieShooter_Core_ZombieBuilder ..> ZombieShooter_Core_ZombieArchetype : builds
 ZombieShooter_Core_GameSession "0..*" --> "1" ZombieShooter_Core_IGameMode : mode
 ZombieShooter_Core_GameSession "0..*" --> "1" ZombieShooter_Core_IDropPolicy : drops
@@ -670,16 +653,12 @@ ZombieShooter_Core_Entity <|-- ZombieShooter_Core_Bullet
 ZombieShooter_Core_Entity <|-- ZombieShooter_Core_Pickup
 ZombieShooter_Core_Entity <|-- ZombieShooter_Core_Player
 ZombieShooter_Core_Entity <|-- ZombieShooter_Core_Zombie
-ZombieShooter_Core_EntityFactory <|-- ZombieShooter_Core_NightmareEntityFactory
 ZombieShooter_Core_GameNotification <|-- ZombieShooter_Core_PickupNotification
 ZombieShooter_Core_GameNotification <|-- ZombieShooter_Core_WaveNotification
-ZombieShooter_Core_IContentFactory <|.. ZombieShooter_Core_NightmareContent
 ZombieShooter_Core_IContentFactory <|.. ZombieShooter_Core_NormalContent
-ZombieShooter_Core_IDropPolicy <|.. ZombieShooter_Core_NightmareContent
 ZombieShooter_Core_IDropPolicy <|.. ZombieShooter_Core_NormalContent
 ZombieShooter_Core_IGameMode <|.. ZombieShooter_Core_BruteMode
 ZombieShooter_Core_IGameMode <|.. ZombieShooter_Core_HordeMode
-ZombieShooter_Core_IGameMode <|.. ZombieShooter_Core_NightmareContent
 ZombieShooter_Core_IGameMode <|.. ZombieShooter_Core_NormalContent
 ZombieShooter_Core_INotificationOutput <|.. ZombieShooter_Core_Networking_GameServer
 ZombieShooter_Core_INotificationOutput <|.. ZombieShooter_ZombieShooterGame
@@ -693,7 +672,6 @@ ZombieShooter_Core_WeaponDecorator <|-- ZombieShooter_Core_MagazineSizeBonus
 ZombieShooter_Core_Zombie <|-- ZombieShooter_Core_Brute
 ZombieShooter_Core_Zombie <|-- ZombieShooter_Core_Runner
 ZombieShooter_Core_Zombie <|-- ZombieShooter_Core_Walker
-ZombieShooter_Core_ZombieBuilder <|-- ZombieShooter_Core_NightmareContent
 ZombieShooter_Core_ZombieBuilder <|-- ZombieShooter_Core_NormalContent
 ZombieShooter_Core_ZombieCreator <|-- ZombieShooter_Core_BruteCreator
 ZombieShooter_Core_ZombieCreator <|-- ZombieShooter_Core_RunnerCreator

@@ -65,7 +65,7 @@ public sealed class Pickup(int id, Vector2 position, PickupKind kind) : Entity(i
 }
 
 // Factory centralizes identities and construction; it belongs to one session.
-public class EntityFactory
+public sealed class EntityFactory
 {
     private static readonly IReadOnlyDictionary<ZombieKind, ZombieCreator> ZombieCreators =
         new Dictionary<ZombieKind, ZombieCreator>
@@ -83,7 +83,7 @@ public class EntityFactory
         foreach (var kind in Enum.GetValues<ZombieKind>())
             _templates[kind] = BuildArchetype(kind, builder);
     }
-    // Builder director role: both content families use the same construction recipes.
+    // Builder director role: the content factory uses these construction recipes.
     public static ZombieArchetype BuildArchetype(ZombieKind kind, ZombieBuilder? builder = null)
     {
         builder ??= new NormalContent();

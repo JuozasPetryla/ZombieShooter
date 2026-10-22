@@ -153,29 +153,25 @@ Check(factory.CreateZombie(Vector2.Zero, ZombieKind.Walker, 1) is Walker &&
     factory.CreateZombie(Vector2.Zero, ZombieKind.Brute, 1) is Brute,
     "Factory Method produces three concrete product classes");
 var normal = new NormalContent();
-var nightmare = new NightmareContent();
 Check(normal.CreateGameMode() is NormalContent && normal.CreateDropPolicy() is NormalContent &&
-    nightmare.CreateGameMode() is NightmareContent && nightmare.CreateDropPolicy() is NightmareContent &&
-    nightmare.CreateEntityFactory() is NightmareEntityFactory, "Abstract factories provide three matching products per family");
-foreach (var content in new IContentFactory[] { normal, nightmare })
-{
-    // Builder state must not leak into a new match or the stateless product roles.
-    var rules = content.CreateGameMode();
-    var drops = content.CreateDropPolicy();
-    int expectedCount = rules.EnemyCount(1, 1);
-    var expectedDrop = drops.Roll(new Random(42));
-    ((ZombieBuilder)content).WithSpeed(float.NaN).WithHealth(1);
-    var first = content.CreateEntityFactory().CreateZombie(Vector2.Zero, ZombieKind.Walker, 1);
-    first.Attack.Damage = 999;
-    var second = content.CreateEntityFactory().CreateZombie(Vector2.Zero, ZombieKind.Walker, 1);
-    Check(ReferenceEquals(content, rules) && ReferenceEquals(content, drops) &&
-        rules.EnemyCount(1, 1) == expectedCount && drops.Roll(new Random(42)) == expectedDrop &&
-        second.Attack.Damage == 10 && second.Health == (content is NightmareContent ? 90 : 60) &&
-        second.Speed == (content is NightmareContent ? 87.5f : 70f),
-        $"{content.GetType().Name} shares stateless roles and isolates builder and session state");
-}
-Check(new IGameMode[] { new NormalContent(), new NightmareContent(), new HordeMode(), new BruteMode() }
-    .Select(m => m.GetType()).Distinct().Count() == 4, "Four production strategies available");
+    normal.CreateEntityFactory() is EntityFactory, "Single content factory provides three products");
+// Builder state must not leak into a new match or the stateless product roles.
+var rules = normal.CreateGameMode();
+var dropsPolicy = normal.CreateDropPolicy();
+int expectedCount = rules.EnemyCount(1, 1);
+var expectedDrop = dropsPolicy.Roll(new Random(42));
+normal.WithSpeed(float.NaN).WithHealth(1);
+var first = normal.CreateEntityFactory().CreateZombie(Vector2.Zero, ZombieKind.Walker, 1);
+first.Attack.Damage = 999;
+var second = normal.CreateEntityFactory().CreateZombie(Vector2.Zero, ZombieKind.Walker, 1);
+Check(ReferenceEquals(normal, rules) && ReferenceEquals(normal, dropsPolicy) &&
+    rules.EnemyCount(1, 1) == expectedCount && dropsPolicy.Roll(new Random(42)) == expectedDrop &&
+    second.Attack.Damage == 10 && second.Health == 60 && second.Speed == 70,
+    "Normal content shares stateless roles and isolates builder and session state");
+Check(new IGameMode[] { new NormalContent(), new HordeMode(), new BruteMode() }
+    .Select(m => m.GetType()).Distinct().Count() == 3 &&
+    Enum.GetValues<GamePreset>().SequenceEqual(new[] { GamePreset.Normal, GamePreset.Horde, GamePreset.Brute }),
+    "Three production strategies and selectable presets remain");
 Check(new HordeMode().EnemyCount(1, 1) > new NormalContent().EnemyCount(1, 1) &&
     new BruteMode().ChooseZombie(1, new Random(1)) == ZombieKind.Brute, "Additional strategies change gameplay");
 // Exercise the shared desktop/server selection through actual wave spawning.
@@ -185,7 +181,6 @@ foreach (var preset in Enum.GetValues<GamePreset>())
     var expected = preset switch
     {
         GamePreset.Normal => (Count: 7, Health: 60, Kind: ZombieKind.Walker),
-        GamePreset.Nightmare => (Count: 10, Health: 90, Kind: ZombieKind.Walker),
         GamePreset.Horde => (Count: 15, Health: 60, Kind: ZombieKind.Walker),
         _ => (Count: 3, Health: 150, Kind: ZombieKind.Brute)
     };
@@ -194,10 +189,6 @@ foreach (var preset in Enum.GetValues<GamePreset>())
         game.Session.Zombies[0].Kind == expected.Kind && game.Session.Zombies[0].Health == expected.Health,
         $"{preset} preset selects matching content and wave rules");
 }
-var standard = EntityFactory.BuildArchetype(ZombieKind.Walker, new NormalContent());
-var armored = EntityFactory.BuildArchetype(ZombieKind.Walker, new NightmareContent());
-Check(standard.Health == 60 && armored.Health == 90 && armored.Speed == 87.5f,
-    "Director uses two concrete builders for distinct representations");
 bool invalidBuild = false;
 try { new NormalContent().WithSpeed(float.NaN).Build(); }
 catch (InvalidOperationException) { invalidBuild = true; }
@@ -217,11 +208,15 @@ Check(nextSpawn.Attack.Damage == 10 && nextSpawn.Health == 60 && nextSpawn.Speed
 foreach (var kind in Enum.GetValues<ZombieKind>())
 {
     var template = EntityFactory.BuildArchetype(kind);
-    var tougher = EntityFactory.BuildArchetype(kind, new NightmareContent());
-    Check(template.Kind == kind && tougher.Kind == kind &&
-        tougher.Health == (int)(template.Health * 1.5f) && tougher.Speed == template.Speed * 1.25f &&
-        tougher.Attack.Damage == template.Attack.Damage,
-        $"Shared {kind} recipe preserves both content families");
+    var expected = kind switch
+    {
+        ZombieKind.Walker => (Health: 60, Speed: 70f, Damage: 10),
+        ZombieKind.Runner => (Health: 35, Speed: 125f, Damage: 8),
+        _ => (Health: 150, Speed: 48f, Damage: 20)
+    };
+    Check(template.Kind == kind && template.Health == expected.Health &&
+        template.Speed == expected.Speed && template.Attack.Damage == expected.Damage,
+        $"{kind} recipe preserves base combat statistics");
 }
 IWeapon decorated = new MagazineSizeBonus(new FireRateBonus(new DamageBonus(WeaponStats.Pistol, 5), 0.5f), 2);
 Check(decorated.Damage == 40 && Math.Abs(decorated.FireCooldown - 0.09f) < 0.0001f &&

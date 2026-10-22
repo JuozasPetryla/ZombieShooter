@@ -28,7 +28,7 @@ dotnet run --project src/ZombieShooter.Server -- 7777 normal
 dotnet run --project src/ZombieShooter -- --connect 127.0.0.1 7777
 ```
 
-Server modes: `normal`, `nightmare`, `horde`, `brute`. The server listens on
+Server modes: `normal`, `horde`, `brute`. The server listens on
 loopback, waits for both players, and pauses when either disconnects. A replacement
 client takes the vacant slot. Restart the server and clients for a new match.
 
@@ -43,7 +43,7 @@ client takes the vacant slot. Restart the server and clients for a new match.
 | Undo last valid command | Z | N |
 | Pause / restart | P / R | Shared |
 | Solo / co-op | F2 | Starts a new local session |
-| Mode | F3 | Normal → Nightmare → Horde → Brute; starts a new session |
+| Mode | F3 | Normal → Horde → Brute; starts a new session |
 | Exit | Escape | Shared |
 
 P, R, F2 and F3 apply only to local games. In network play the server chooses the
@@ -61,20 +61,21 @@ match ends when everyone dies. The high score lasts for the process lifetime.
 - `ZombieShooter.Server`: server entry point.
 - `ZombieShooter.Core.Tests`: regression tests and the Prototype experiment.
 
-[Requirements and pattern mapping](docs/PROJEKTO_APRASAS.md) are the single source
-for coursework criteria. All 12 documented patterns remain. `NormalContent` and
-`NightmareContent` each serve as an Abstract Factory, a wave Strategy, a drop
-policy, and a concrete Builder. That keeps two families, three product interfaces
-per family, two builders and four strategies with fewer classes. Stateless wave
-and drop products can share the family object; entity construction uses a fresh
-builder. `GameFacade.CreatePreset` supplies the same four choices to desktop and
-server.
+[Requirements and pattern mapping](docs/PROJEKTO_APRASAS.md) record the coursework
+criteria and current implementation. Nightmare has been removed to simplify the
+code. The project deliberately has **three strategies instead of four, one content
+family instead of two, and one concrete builder instead of two**.
+
+`NormalContent` serves as the content factory, normal wave Strategy, drop policy,
+and concrete Builder. It supplies three product interfaces; wave and drop rules
+share the stateless content object, while entity construction uses a fresh builder.
+`GameFacade.CreatePreset` exposes Normal, Horde, and Brute to desktop and server.
 
 The desktop game and server also implement `INotificationOutput`: the same hosts
 are Facade clients, Observer subscribers, and the two Bridge output implementations.
 `WeaponStats` supplies immutable pistol/shotgun defaults and snapshot weapon data;
-the three Decorator classes still wrap `IWeapon`. These shared roles remove four
-classes without reducing the documented pattern participant counts.
+the three Decorator classes still wrap `IWeapon`. These shared roles keep both Bridge implementations and all three decorators
+without separate output or weapon classes.
 
 [Current class diagram](docs/uml/01-current-classes.svg)
 ([PlantUML](docs/uml/01-current-classes.puml)) ·
