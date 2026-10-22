@@ -8,7 +8,7 @@ using NVector2 = System.Numerics.Vector2;
 
 namespace ZombieShooter;
 
-public sealed class ZombieShooterGame : Game, INotificationOutput
+public sealed class ZombieShooterGame : Game, INotificationOutput, IGameObserver
 {
     private SpriteBatch _batch = null!;
     private Texture2D _pixel = null!;
@@ -52,17 +52,17 @@ public sealed class ZombieShooterGame : Game, INotificationOutput
 
     private void Restart()
     {
-        if (_session is not null) _session.EventOccurred -= OnGameEvent;
+        if (_session is not null) _session.Detach(this);
         _facade = GameFacade.CreatePreset(_preset, _playerCount, Environment.TickCount);
         _session = _facade.Session;
         if (_network is not null) _session.ApplySnapshot(_network.Latest.Snapshot);
-        _session.EventOccurred += OnGameEvent;
+        _session.Attach(this);
         _paused = false;
         _notice = _playerCount == 2 ? "LOCAL CO-OP" : "SURVIVE THE HORDE";
         _noticeTime = 3;
     }
 
-    private void OnGameEvent(GameEvent message)
+    public void OnGameEvent(GameEvent message)
     {
         if (message.Name is "WaveStarted" or "WaveCleared" or "WeaponsUpgraded") _waveNotice.Show(message);
         else if (message.Name == "PickupCollected") _pickupNotice.Show(message);
@@ -115,22 +115,22 @@ public sealed class ZombieShooterGame : Game, INotificationOutput
         if (IsActive && !_paused)
         {
             var p1 = _network is null ? _session.Players[0] : _session.Players.Single(p => p.Id == _network.PlayerId);
-            if (Pressed(Keys.E)) Queue(new ReloadCommand(p1.Id));
-            if (Pressed(Keys.D1)) Queue(new SelectWeaponCommand(p1.Id, WeaponKind.Pistol));
-            if (Pressed(Keys.D2)) Queue(new SelectWeaponCommand(p1.Id, WeaponKind.Shotgun));
-            if (Pressed(Keys.Z)) Queue(new UndoCommand(p1.Id));
+            if (Pressed(Keys.E)) Queue(new ReloadCommand(_session, p1.Id));
+            if (Pressed(Keys.D1)) Queue(new SelectWeaponCommand(_session, p1.Id, WeaponKind.Pistol));
+            if (Pressed(Keys.D2)) Queue(new SelectWeaponCommand(_session, p1.Id, WeaponKind.Shotgun));
+            if (Pressed(Keys.Z)) Queue(new UndoCommand(_session, p1.Id));
             var input1 = _keyboardInput.Read(p1.Position);
             if (_network is null) _facade.SetInput(p1.Id, input1);
             else _network.SetInput(input1);
             if (_playerCount == 2 && _network is null)
             {
                 var p2 = _session.Players[1];
-                if (Pressed(Keys.N)) Queue(new UndoCommand(p2.Id));
-                if (Pressed(Keys.O) || PadPressed(Buttons.X)) Queue(new ReloadCommand(p2.Id));
+                if (Pressed(Keys.N)) Queue(new UndoCommand(_session, p2.Id));
+                if (Pressed(Keys.O) || PadPressed(Buttons.X)) Queue(new ReloadCommand(_session, p2.Id));
                 if (Pressed(Keys.D9) || PadPressed(Buttons.LeftShoulder))
-                    Queue(new SelectWeaponCommand(p2.Id, WeaponKind.Pistol));
+                    Queue(new SelectWeaponCommand(_session, p2.Id, WeaponKind.Pistol));
                 if (Pressed(Keys.D0) || PadPressed(Buttons.RightShoulder))
-                    Queue(new SelectWeaponCommand(p2.Id, WeaponKind.Shotgun));
+                    Queue(new SelectWeaponCommand(_session, p2.Id, WeaponKind.Shotgun));
                 var move = new NVector2(Axis(keys, Keys.Left, Keys.Right), Axis(keys, Keys.Up, Keys.Down));
                 var aim = new NVector2(Axis(keys, Keys.J, Keys.L), Axis(keys, Keys.I, Keys.K));
                 bool fire = keys.IsKeyDown(Keys.RightControl) || keys.IsKeyDown(Keys.Enter);
@@ -236,7 +236,7 @@ public sealed class ZombieShooterGame : Game, INotificationOutput
 
     protected override void UnloadContent()
     {
-        _session.EventOccurred -= OnGameEvent;
+        _session.Detach(this);
         _network?.SetInput(default);
         _pixel.Dispose();
         _batch.Dispose();

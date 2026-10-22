@@ -86,7 +86,7 @@ package "ZombieShooter" {
     {method} +ZombieShooterGame(NetworkGameClient? network = null)
     {method} +Write(string text) : void
     {method} -Restart() : void
-    {method} -OnGameEvent(GameEvent message) : void
+    {method} +OnGameEvent(GameEvent message) : void
     {method} -Queue(IGameCommand command) : void
     {method} #override LoadContent() : void
     {method} #override Update(GameTime gameTime) : void
@@ -147,8 +147,7 @@ package "ZombieShooter.Core" {
     {field} -{static} readonly ZombieCreators : IReadOnlyDictionary<ZombieKind, ZombieCreator>
     {field} -_nextId : int
     {field} -readonly _templates : Dictionary<ZombieKind, ZombieArchetype>
-    {method} +EntityFactory(ZombieBuilder? builder = null)
-    {method} +{static} BuildArchetype(ZombieKind kind, ZombieBuilder? builder = null) : ZombieArchetype
+    {method} +EntityFactory()
     {method} +CreatePlayer(Vector2 position) : Player
     {method} +CreateZombie(Vector2 position, ZombieKind kind, int wave) : Zombie
     {method} +CreateBullet(Vector2 position, Vector2 direction, int ownerId, int damage) : Bullet
@@ -172,7 +171,8 @@ package "ZombieShooter.Core" {
     {field} -_eventSequence : long
     {field} +Session : GameSession { get; }
     {method} +{static} CreatePreset(GamePreset preset, int players = 1, int seed = 1) : GameFacade
-    {method} +GameFacade(int players = 1, int seed = 1, IGameMode? mode = null, IContentFactory? content = null)
+    {method} +GameFacade(int players = 1, int seed = 1, IGameMode? mode = null)
+    {method} -IGameObserver.OnGameEvent(GameEvent message) : void
     {method} +SetInput(int playerId, PlayerInput input) : void
     {method} +Queue(IGameCommand command) : bool
     {method} +Tick(float dt) : void
@@ -195,7 +195,6 @@ package "ZombieShooter.Core" {
     {field} -readonly _factory : EntityFactory
     {field} -readonly _random : Random
     {field} -readonly _mode : IGameMode
-    {field} -readonly _drops : IDropPolicy
     {field} -readonly _players : List<Player>
     {field} -readonly _zombies : List<Zombie>
     {field} -readonly _bullets : List<Bullet>
@@ -212,8 +211,11 @@ package "ZombieShooter.Core" {
     {field} +Score : int { get; private set; }
     {field} +EnemiesRemaining : int { get; computed }
     {field} +IntermissionRemaining : float { get; private set; }
-    {field} +EventOccurred : Action<GameEvent>? <<event>>
-    {method} +GameSession(int playerCount = 1, int seed = 1, IGameMode? mode = null, IContentFactory? content = null)
+    {field} -readonly _observers : List<IGameObserver>
+    {method} +Attach(IGameObserver observer) : void
+    {method} +Detach(IGameObserver observer) : void
+    {method} -Notify(GameEvent message) : void
+    {method} +GameSession(int playerCount = 1, int seed = 1, IGameMode? mode = null)
     {method} +EnqueueCommand(IGameCommand command) : bool
     {method} +TryReload(int playerId) : bool
     {method} +TrySelectWeapon(int playerId, WeaponKind weapon) : bool
@@ -238,19 +240,18 @@ package "ZombieShooter.Core" {
     {method} +SpawnInterval(int wave) : float
     {method} +ChooseZombie(int wave, Random random) : ZombieKind
   }
-  interface "IContentFactory" as ZombieShooter_Core_IContentFactory {
-    {method} +CreateEntityFactory() : EntityFactory
-    {method} +CreateGameMode() : IGameMode
-    {method} +CreateDropPolicy() : IDropPolicy
-  }
-  interface "IDropPolicy" as ZombieShooter_Core_IDropPolicy {
-    {method} +Roll(Random random) : PickupKind?
-  }
   interface "IGameMode" as ZombieShooter_Core_IGameMode {
     {field} +IntermissionSeconds : float { get; }
     {method} +EnemyCount(int wave, int playerCount) : int
     {method} +SpawnInterval(int wave) : float
     {method} +ChooseZombie(int wave, Random random) : ZombieKind
+  }
+  interface "IGameObserver" as ZombieShooter_Core_IGameObserver {
+    {method} +OnGameEvent(GameEvent message) : void
+  }
+  interface "IGameSubject" as ZombieShooter_Core_IGameSubject {
+    {method} +Attach(IGameObserver observer) : void
+    {method} +Detach(IGameObserver observer) : void
   }
   interface "INotificationOutput" as ZombieShooter_Core_INotificationOutput {
     {method} +Write(string text) : void
@@ -277,15 +278,11 @@ package "ZombieShooter.Core" {
     {field} -bonus : int <<captured parameter>>
     {field} +override MagazineSize : int { get; computed }
   }
-  class "NormalContent" as ZombieShooter_Core_NormalContent <<sealed>> {
-    {method} +CreateEntityFactory() : EntityFactory
-    {method} +CreateGameMode() : IGameMode
-    {method} +CreateDropPolicy() : IDropPolicy
+  class "NormalMode" as ZombieShooter_Core_NormalMode <<sealed>> {
     {field} +IntermissionSeconds : float { get; computed }
     {method} +EnemyCount(int wave, int playerCount) : int
     {method} +SpawnInterval(int wave) : float
     {method} +ChooseZombie(int wave, Random random) : ZombieKind
-    {method} +Roll(Random random) : PickupKind?
   }
   class "Pickup" as ZombieShooter_Core_Pickup <<sealed>> {
     {method} +Pickup(int id, Vector2 position, PickupKind kind) <<primary constructor>>
@@ -433,7 +430,7 @@ package "ZombieShooter.Core" {
     {method} +ShallowClone() : ZombieArchetype
     {method} +Clone() : ZombieArchetype
   }
-  abstract class "ZombieBuilder" as ZombieShooter_Core_ZombieBuilder {
+  class "ZombieBuilder" as ZombieShooter_Core_ZombieBuilder <<sealed>> {
     {field} -_kind : ZombieKind
     {field} -_health : int
     {field} -_speed : float
@@ -441,6 +438,7 @@ package "ZombieShooter.Core" {
     {field} -_xpReward : int
     {field} -_attackDamage : int
     {field} -_attackCooldown : float
+    {method} +Reset() : ZombieBuilder
     {method} +OfKind(ZombieKind kind) : ZombieBuilder
     {method} +WithHealth(int health) : ZombieBuilder
     {method} +WithSpeed(float speed) : ZombieBuilder
@@ -451,6 +449,12 @@ package "ZombieShooter.Core" {
   }
   abstract class "ZombieCreator" as ZombieShooter_Core_ZombieCreator {
     {method} +{abstract} Create(int id, Vector2 position, ZombieArchetype archetype) : Zombie
+    {method} +Spawn(int id, Vector2 position, ZombieArchetype archetype, int wave) : Zombie
+  }
+  class "ZombieDirector" as ZombieShooter_Core_ZombieDirector <<sealed>> {
+    {method} +ZombieDirector(ZombieBuilder builder) <<primary constructor>>
+    {field} -builder : ZombieBuilder <<captured parameter>>
+    {method} +Construct(ZombieKind kind) : ZombieArchetype
   }
   enum "ZombieKind" as ZombieShooter_Core_ZombieKind {
     Walker
@@ -484,34 +488,36 @@ package "ZombieShooter.Core.Commands" {
   }
   interface "IGameCommand" as ZombieShooter_Core_Commands_IGameCommand {
     {field} +PlayerId : int { get; }
-    {method} +Execute(GameSession session) : bool
-    {method} +Undo(GameSession session) : bool
+    {method} +Execute() : bool
+    {method} +Undo() : bool
   }
   abstract class "PlayerCommand" as ZombieShooter_Core_Commands_PlayerCommand {
-    {method} +PlayerCommand(int playerId) <<primary constructor>>
+    {method} +PlayerCommand(GameSession receiver, int playerId) <<primary constructor>>
     {field} +PlayerId : int { get; }
-    {field} -_receiver : GameSession?
+    {field} #Receiver : GameSession { get; }
+    {field} -_executed : bool
     {field} -_weapon : WeaponKind
     {field} -_reload : float
     {field} -_version : long
-    {method} +Execute(GameSession session) : bool
-    {method} #{abstract} Apply(GameSession session) : bool
-    {method} +Undo(GameSession session) : bool
+    {method} +Execute() : bool
+    {method} #{abstract} Apply() : bool
+    {method} +Undo() : bool
   }
   class "ReloadCommand" as ZombieShooter_Core_Commands_ReloadCommand <<sealed>> {
-    {method} +ReloadCommand(int playerId) <<primary constructor>>
-    {method} #override Apply(GameSession session) : bool
+    {method} +ReloadCommand(GameSession receiver, int playerId) <<primary constructor>>
+    {method} #override Apply() : bool
   }
   class "SelectWeaponCommand" as ZombieShooter_Core_Commands_SelectWeaponCommand <<sealed>> {
-    {method} +SelectWeaponCommand(int playerId, WeaponKind weapon) <<primary constructor>>
+    {method} +SelectWeaponCommand(GameSession receiver, int playerId, WeaponKind weapon) <<primary constructor>>
     {field} +Weapon : WeaponKind { get; }
-    {method} #override Apply(GameSession session) : bool
+    {method} #override Apply() : bool
   }
   class "UndoCommand" as ZombieShooter_Core_Commands_UndoCommand <<sealed>> {
-    {method} +UndoCommand(int playerId) <<primary constructor>>
+    {method} +UndoCommand(GameSession receiver, int playerId) <<primary constructor>>
+    {field} -receiver : GameSession <<captured parameter>>
     {field} +PlayerId : int { get; }
-    {method} +Execute(GameSession session) : bool
-    {method} +Undo(GameSession session) : bool
+    {method} +Execute() : bool
+    {method} +Undo() : bool
   }
 }
 package "ZombieShooter.Core.Networking" {
@@ -534,9 +540,12 @@ package "ZombieShooter.Core.Networking" {
     {field} -readonly _connections : List<Task>
     {field} -_accept : Task?
     {field} -_ticks : Task?
+    {field} -readonly _waveNotice : WaveNotification
+    {field} -readonly _pickupNotice : PickupNotification
     {field} +Port : int { get; computed }
     {method} +GameServer(int port = 7777, GamePreset preset = GamePreset.Normal)
     {method} +Write(string text) : void
+    {method} +OnGameEvent(GameEvent message) : void
     {method} +Start() : void
     {method} -async AcceptAsync() : Task
     {method} -Frame(int slot) : ServerFrame
@@ -586,7 +595,6 @@ package "External base types (members omitted)" {
   interface "IDisposable" as External_IDisposable <<external>>
 }
 ' Explicit ownership and behavioral relationships reviewed against the source.
-ZombieShooter_Core_NormalContent ..> ZombieShooter_Core_EntityFactory : creates
 ZombieShooter_Core_WalkerCreator ..> ZombieShooter_Core_Walker : creates
 ZombieShooter_Core_RunnerCreator ..> ZombieShooter_Core_Runner : creates
 ZombieShooter_Core_BruteCreator ..> ZombieShooter_Core_Brute : creates
@@ -594,12 +602,11 @@ ZombieShooter_Core_Zombie "0..*" --> "1" ZombieShooter_Core_AttackProfile : Atta
 ZombieShooter_Core_EntityFactory "0..*" --> "3" ZombieShooter_Core_ZombieCreator : static ZombieCreators
 ZombieShooter_Core_ZombieBuilder ..> ZombieShooter_Core_ZombieArchetype : builds
 ZombieShooter_Core_GameSession "0..*" --> "1" ZombieShooter_Core_IGameMode : mode
-ZombieShooter_Core_GameSession "0..*" --> "1" ZombieShooter_Core_IDropPolicy : drops
 ZombieShooter_Core_GameSession "0..1" *-- "1" ZombieShooter_Core_EntityFactory
 ZombieShooter_Core_WeaponDecorator "0..*" --> "1" ZombieShooter_Core_IWeapon : Inner
 ZombieShooter_Core_Player "0..*" --> "2" ZombieShooter_Core_IWeapon : pistol / shotgun
-ZombieShooter_Core_Commands_PlayerCommand "0..*" --> "0..1" ZombieShooter_Core_GameSession : receiver
-ZombieShooter_Core_Commands_UndoCommand ..> ZombieShooter_Core_GameSession : parameter
+ZombieShooter_Core_Commands_PlayerCommand "0..*" --> "1" ZombieShooter_Core_GameSession : Receiver
+ZombieShooter_Core_Commands_UndoCommand "0..*" --> "1" ZombieShooter_Core_GameSession : receiver
 ZombieShooter_Core_GameFacade "0..1" *-- "1" ZombieShooter_Core_InputBuffer
 ZombieShooter_Core_GameFacade "0..1" *-- "1" ZombieShooter_Core_GameSession
 ZombieShooter_Core_Commands_CommandDispatcher "0..*" --> "1" ZombieShooter_Core_GameSession
@@ -614,10 +621,11 @@ ZombieShooter_ZombieShooterGame "0..*" --> "2" ZombieShooter_IPlayerInputSource
 ZombieShooter_ZombieShooterGame ..> ZombieShooter_HighScores : uses singleton
 ZombieShooter_ZombieShooterGame "0..*" --> "1" ZombieShooter_Core_WaveNotification
 ZombieShooter_ZombieShooterGame "0..*" --> "1" ZombieShooter_Core_PickupNotification
-ZombieShooter_Core_Networking_GameServer ..> ZombieShooter_Core_WaveNotification
-ZombieShooter_Core_Networking_GameServer ..> ZombieShooter_Core_PickupNotification
+ZombieShooter_Core_Networking_GameServer "0..*" --> "1" ZombieShooter_Core_WaveNotification
+ZombieShooter_Core_Networking_GameServer "0..*" --> "1" ZombieShooter_Core_PickupNotification
 ZombieShooter_Core_GameNotification "0..*" --> "1" ZombieShooter_Core_INotificationOutput : Output
-ZombieShooter_Core_EntityFactory ..> ZombieShooter_Core_ZombieBuilder : directs recipes
+ZombieShooter_Core_EntityFactory ..> ZombieShooter_Core_ZombieDirector : constructs templates
+ZombieShooter_Core_ZombieDirector "0..*" --> "1" ZombieShooter_Core_ZombieBuilder : builder
 ZombieShooter_Core_EntityFactory "0..*" --> "3" ZombieShooter_Core_ZombieArchetype : templates / clones
 ZombieShooter_Core_GameSession "0..1" *-- "1" ZombieShooter_Core_Commands_CommandDispatcher
 ZombieShooter_Core_GameFacade "0..*" --> "1" ZombieShooter_Core_Commands_CommandDispatcher
@@ -629,6 +637,7 @@ ZombieShooter_Core_GameSession "1" *-- "0..*" ZombieShooter_Core_Pickup
 ZombieShooter_Core_ZombieArchetype "0..*" --> "1" ZombieShooter_Core_AttackProfile : Attack
 ZombieShooter_Core_GameFacade "0..*" --> "0..128" ZombieShooter_Core_SequencedEvent
 ZombieShooter_Core_GameSession ..> ZombieShooter_Core_GameEvent : publishes
+ZombieShooter_Core_GameSession "0..*" --> "0..*" ZombieShooter_Core_IGameObserver : observers (Attach / Detach / Notify)
 ZombieShooter_Core_InputBuffer "0..*" --> "0..*" ZombieShooter_Core_PlayerInput
 ZombieShooter_Core_Networking_NetworkGameClient "0..*" --> "1" ZombieShooter_Core_Networking_ServerFrame
 ZombieShooter_Core_Networking_NetworkGameClient "0..*" --> "1" ZombieShooter_Core_PlayerInput
@@ -655,11 +664,13 @@ ZombieShooter_Core_Entity <|-- ZombieShooter_Core_Player
 ZombieShooter_Core_Entity <|-- ZombieShooter_Core_Zombie
 ZombieShooter_Core_GameNotification <|-- ZombieShooter_Core_PickupNotification
 ZombieShooter_Core_GameNotification <|-- ZombieShooter_Core_WaveNotification
-ZombieShooter_Core_IContentFactory <|.. ZombieShooter_Core_NormalContent
-ZombieShooter_Core_IDropPolicy <|.. ZombieShooter_Core_NormalContent
 ZombieShooter_Core_IGameMode <|.. ZombieShooter_Core_BruteMode
 ZombieShooter_Core_IGameMode <|.. ZombieShooter_Core_HordeMode
-ZombieShooter_Core_IGameMode <|.. ZombieShooter_Core_NormalContent
+ZombieShooter_Core_IGameMode <|.. ZombieShooter_Core_NormalMode
+ZombieShooter_Core_IGameObserver <|.. ZombieShooter_Core_GameFacade
+ZombieShooter_Core_IGameObserver <|.. ZombieShooter_Core_Networking_GameServer
+ZombieShooter_Core_IGameObserver <|.. ZombieShooter_ZombieShooterGame
+ZombieShooter_Core_IGameSubject <|.. ZombieShooter_Core_GameSession
 ZombieShooter_Core_INotificationOutput <|.. ZombieShooter_Core_Networking_GameServer
 ZombieShooter_Core_INotificationOutput <|.. ZombieShooter_ZombieShooterGame
 ZombieShooter_Core_IPrototype <|.. ZombieShooter_Core_AttackProfile : IPrototype<AttackProfile>
@@ -672,7 +683,6 @@ ZombieShooter_Core_WeaponDecorator <|-- ZombieShooter_Core_MagazineSizeBonus
 ZombieShooter_Core_Zombie <|-- ZombieShooter_Core_Brute
 ZombieShooter_Core_Zombie <|-- ZombieShooter_Core_Runner
 ZombieShooter_Core_Zombie <|-- ZombieShooter_Core_Walker
-ZombieShooter_Core_ZombieBuilder <|-- ZombieShooter_Core_NormalContent
 ZombieShooter_Core_ZombieCreator <|-- ZombieShooter_Core_BruteCreator
 ZombieShooter_Core_ZombieCreator <|-- ZombieShooter_Core_RunnerCreator
 ZombieShooter_Core_ZombieCreator <|-- ZombieShooter_Core_WalkerCreator

@@ -53,6 +53,6 @@ public sealed partial class GameSession
         _pickups.Clear();
         foreach (var p in snapshot.Pickups) _pickups.Add(new(p.Id, new(p.X, p.Y), p.Kind));
         foreach (var e in snapshot.Events)
-            if (e.Sequence > _lastRemoteEvent) { _lastRemoteEvent = e.Sequence; EventOccurred?.Invoke(e.Event); }
+            if (e.Sequence > _lastRemoteEvent) { _lastRemoteEvent = e.Sequence; Notify(e.Event); }
     }
 }

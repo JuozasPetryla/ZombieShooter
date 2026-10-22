@@ -27,7 +27,7 @@ Check(float.IsFinite(player.Position.X) && float.IsFinite(player.Aim.X), "Invali
 
 var combat = new GameSession(mode: new TestMode());
 var events = new List<GameEvent>();
-combat.EventOccurred += events.Add;
+combat.Attach(new RecordingObserver(events));
 combat.Update(dt, empty);
 Check(combat.Wave == 1 && combat.Zombies.Count == 1, "Mode strategy starts a wave and spawns enemies");
 var zombie = combat.Zombies[0];
@@ -96,52 +96,52 @@ var commands = new GameSession(2);
 var cp = commands.Players[0];
 var partner = commands.Players[1];
 cp.PistolAmmo = 2;
-Check(commands.EnqueueCommand(new ReloadCommand(cp.Id)) && !cp.IsReloading, "Enqueue defers execution");
+Check(commands.EnqueueCommand(new ReloadCommand(commands, cp.Id)) && !cp.IsReloading, "Enqueue defers execution");
 commands.Update(0, empty);
 Check(!cp.IsReloading, "Zero tick retains queued commands");
 commands.Update(dt, empty);
 Check(cp.IsReloading && !partner.IsReloading, "Reload targets only the requested player");
 float reloadTime = cp.ReloadRemaining;
-Check(!new ReloadCommand(cp.Id).Execute(commands) && cp.ReloadRemaining == reloadTime, "Repeated reload does not restart timer");
+Check(!new ReloadCommand(commands, cp.Id).Execute() && cp.ReloadRemaining == reloadTime, "Repeated reload does not restart timer");
 commands.Update(dt, new Dictionary<int, PlayerInput> { [cp.Id] = new(Vector2.Zero, Vector2.UnitX, true) });
 Check(commands.Bullets.Count == 0, "Reload blocks held fire");
 for (int i = 0; i < 80; i++) commands.Update(dt, empty);
 Check(cp.PistolAmmo == 12 && !cp.IsReloading, "Reload completes and refills magazine");
-Check(!new ReloadCommand(cp.Id).Execute(commands), "Full magazine cannot reload");
+Check(!new ReloadCommand(commands, cp.Id).Execute(), "Full magazine cannot reload");
 cp.PistolAmmo = 1;
 commands.Update(dt, new Dictionary<int, PlayerInput> { [cp.Id] = new(Vector2.Zero, Vector2.UnitX, true) });
 Check(cp.PistolAmmo == 0, "Pistol consumes one round per shot");
 for (int i = 0; i < 20; i++) commands.Update(dt, new Dictionary<int, PlayerInput> { [cp.Id] = new(Vector2.Zero, Vector2.UnitX, true) });
 Check(cp.PistolAmmo == 0 && commands.Bullets.Count == 1, "Empty magazine cannot fire");
-Check(!new SelectWeaponCommand(cp.Id, WeaponKind.Shotgun).Execute(commands), "Unowned shotgun selection rejected");
-Check(!new SelectWeaponCommand(cp.Id, (WeaponKind)99).Execute(commands) &&
-    !new ReloadCommand(999).Execute(commands), "Invalid weapon and unknown player rejected");
+Check(!new SelectWeaponCommand(commands, cp.Id, WeaponKind.Shotgun).Execute(), "Unowned shotgun selection rejected");
+Check(!new SelectWeaponCommand(commands, cp.Id, (WeaponKind)99).Execute() &&
+    !new ReloadCommand(commands, 999).Execute(), "Invalid weapon and unknown player rejected");
 cp.WeaponTime = 15;
-commands.EnqueueCommand(new ReloadCommand(cp.Id));
-commands.EnqueueCommand(new SelectWeaponCommand(cp.Id, WeaponKind.Shotgun));
+commands.EnqueueCommand(new ReloadCommand(commands, cp.Id));
+commands.EnqueueCommand(new SelectWeaponCommand(commands, cp.Id, WeaponKind.Shotgun));
 commands.Update(dt, empty);
 Check(cp.Weapon == WeaponKind.Shotgun && !cp.IsReloading && cp.PistolAmmo == 0, "FIFO reload then switch cancels reload without granting ammo");
 commands.Update(dt, new Dictionary<int, PlayerInput> { [cp.Id] = new(Vector2.Zero, Vector2.UnitX, true) });
 Check(cp.ShotgunAmmo == 5, "Shotgun consumes one shell for all five pellets");
-commands.EnqueueCommand(new SelectWeaponCommand(cp.Id, WeaponKind.Pistol));
-commands.EnqueueCommand(new ReloadCommand(cp.Id));
+commands.EnqueueCommand(new SelectWeaponCommand(commands, cp.Id, WeaponKind.Pistol));
+commands.EnqueueCommand(new ReloadCommand(commands, cp.Id));
 commands.Update(dt, empty);
 Check(cp.Weapon == WeaponKind.Pistol && cp.IsReloading && cp.ShotgunAmmo == 5, "FIFO switch then reload targets newly selected weapon and preserves other ammo");
-new SelectWeaponCommand(cp.Id, WeaponKind.Shotgun).Execute(commands);
-new ReloadCommand(cp.Id).Execute(commands);
+new SelectWeaponCommand(commands, cp.Id, WeaponKind.Shotgun).Execute();
+new ReloadCommand(commands, cp.Id).Execute();
 cp.WeaponTime = dt / 2;
 commands.Update(dt, empty);
 Check(cp.Weapon == WeaponKind.Pistol && !cp.IsReloading && cp.PistolAmmo == 0, "Shotgun expiry cancels reload without refilling pistol");
 cp.Health = 0;
-Check(!new ReloadCommand(cp.Id).Execute(commands) &&
-    !new SelectWeaponCommand(cp.Id, WeaponKind.Shotgun).Execute(commands), "Dead players cannot execute actions");
-Check(!combat.EnqueueCommand(new ReloadCommand(shooter.Id)) &&
-    !new ReloadCommand(shooter.Id).Execute(combat), "Game over rejects queued and direct actions");
+Check(!new ReloadCommand(commands, cp.Id).Execute() &&
+    !new SelectWeaponCommand(commands, cp.Id, WeaponKind.Shotgun).Execute(), "Dead players cannot execute actions");
+Check(!combat.EnqueueCommand(new ReloadCommand(combat, shooter.Id)) &&
+    !new ReloadCommand(combat, shooter.Id).Execute(), "Game over rejects queued and direct actions");
 var capacity = new GameSession();
-for (int i = 0; i < 64; i++) capacity.EnqueueCommand(new ReloadCommand(999));
-Check(!capacity.EnqueueCommand(new ReloadCommand(999)), "Command queue is bounded");
+for (int i = 0; i < 64; i++) capacity.EnqueueCommand(new ReloadCommand(capacity, 999));
+Check(!capacity.EnqueueCommand(new ReloadCommand(capacity, 999)), "Command queue is bounded");
 capacity.Update(dt, empty);
-Check(capacity.EnqueueCommand(new ReloadCommand(999)), "Invalid commands drain without blocking the queue");
+Check(capacity.EnqueueCommand(new ReloadCommand(capacity, 999)), "Invalid commands drain without blocking the queue");
 // Quantitative pattern requirements and regression checks.
 var instances = new System.Collections.Concurrent.ConcurrentBag<HighScores>();
 Parallel.For(0, 10000, i => { instances.Add(HighScores.Instance); HighScores.Instance.Submit(i); });
@@ -152,27 +152,14 @@ Check(factory.CreateZombie(Vector2.Zero, ZombieKind.Walker, 1) is Walker &&
     factory.CreateZombie(Vector2.Zero, ZombieKind.Runner, 1) is Runner &&
     factory.CreateZombie(Vector2.Zero, ZombieKind.Brute, 1) is Brute,
     "Factory Method produces three concrete product classes");
-var normal = new NormalContent();
-Check(normal.CreateGameMode() is NormalContent && normal.CreateDropPolicy() is NormalContent &&
-    normal.CreateEntityFactory() is EntityFactory, "Single content factory provides three products");
-// Builder state must not leak into a new match or the stateless product roles.
-var rules = normal.CreateGameMode();
-var dropsPolicy = normal.CreateDropPolicy();
-int expectedCount = rules.EnemyCount(1, 1);
-var expectedDrop = dropsPolicy.Roll(new Random(42));
-normal.WithSpeed(float.NaN).WithHealth(1);
-var first = normal.CreateEntityFactory().CreateZombie(Vector2.Zero, ZombieKind.Walker, 1);
-first.Attack.Damage = 999;
-var second = normal.CreateEntityFactory().CreateZombie(Vector2.Zero, ZombieKind.Walker, 1);
-Check(ReferenceEquals(normal, rules) && ReferenceEquals(normal, dropsPolicy) &&
-    rules.EnemyCount(1, 1) == expectedCount && dropsPolicy.Roll(new Random(42)) == expectedDrop &&
-    second.Attack.Damage == 10 && second.Health == 60 && second.Speed == 70,
-    "Normal content shares stateless roles and isolates builder and session state");
-Check(new IGameMode[] { new NormalContent(), new HordeMode(), new BruteMode() }
+var scaled = new RunnerCreator().Spawn(1, Vector2.Zero, new ZombieDirector(new ZombieBuilder()).Construct(ZombieKind.Runner), 3);
+Check(scaled is Runner && scaled.Health == 45 && scaled.Speed == 129,
+    "Factory Method operation scales the archetype and lets the subclass pick the product");
+Check(new IGameMode[] { new NormalMode(), new HordeMode(), new BruteMode() }
     .Select(m => m.GetType()).Distinct().Count() == 3 &&
     Enum.GetValues<GamePreset>().SequenceEqual(new[] { GamePreset.Normal, GamePreset.Horde, GamePreset.Brute }),
-    "Three production strategies and selectable presets remain");
-Check(new HordeMode().EnemyCount(1, 1) > new NormalContent().EnemyCount(1, 1) &&
+    "Three strategies and selectable presets");
+Check(new HordeMode().EnemyCount(1, 1) > new NormalMode().EnemyCount(1, 1) &&
     new BruteMode().ChooseZombie(1, new Random(1)) == ZombieKind.Brute, "Additional strategies change gameplay");
 // Exercise the shared desktop/server selection through actual wave spawning.
 foreach (var preset in Enum.GetValues<GamePreset>())
@@ -187,13 +174,18 @@ foreach (var preset in Enum.GetValues<GamePreset>())
     for (int i = 0; i < 60 && game.Session.Wave == 0; i++) game.Tick(0.1f);
     Check(game.Session.Wave == 1 && game.Session.EnemiesRemaining == expected.Count &&
         game.Session.Zombies[0].Kind == expected.Kind && game.Session.Zombies[0].Health == expected.Health,
-        $"{preset} preset selects matching content and wave rules");
+        $"{preset} preset selects matching wave rules");
 }
 bool invalidBuild = false;
-try { new NormalContent().WithSpeed(float.NaN).Build(); }
+try { new ZombieBuilder().Reset().WithHealth(60).WithSpeed(float.NaN).WithRadius(14).WithAttack(10, 1).Build(); }
 catch (InvalidOperationException) { invalidBuild = true; }
 Check(invalidBuild, "Builder rejects non-finite properties");
-var original = EntityFactory.BuildArchetype(ZombieKind.Walker);
+var reused = new ZombieBuilder();
+reused.WithHealth(1).WithSpeed(float.NaN);
+var director = new ZombieDirector(reused);
+Check(director.Construct(ZombieKind.Walker).Health == 60 && director.Construct(ZombieKind.Brute).Health == 150,
+    "Director resets the builder before each recipe");
+var original = new ZombieDirector(new ZombieBuilder()).Construct(ZombieKind.Walker);
 var shallow = original.ShallowClone();
 var deep = original.Clone();
 Check(!ReferenceEquals(original, shallow) && ReferenceEquals(original.Attack, shallow.Attack) &&
@@ -207,7 +199,7 @@ Check(nextSpawn.Attack.Damage == 10 && nextSpawn.Health == 60 && nextSpawn.Speed
     "Factory clones templates before per-spawn mutation and wave scaling");
 foreach (var kind in Enum.GetValues<ZombieKind>())
 {
-    var template = EntityFactory.BuildArchetype(kind);
+    var template = new ZombieDirector(new ZombieBuilder()).Construct(kind);
     var expected = kind switch
     {
         ZombieKind.Walker => (Health: 60, Speed: 70f, Damage: 10),
@@ -240,21 +232,21 @@ Check(shooter.PistolGear.MagazineSize == 13 && shooter.PistolGear.Damage == 40,
 var undo = new GameSession();
 var up = undo.Players[0];
 up.PistolAmmo = 2;
-undo.EnqueueCommand(new ReloadCommand(up.Id));
+undo.EnqueueCommand(new ReloadCommand(undo, up.Id));
 undo.Update(dt, empty);
 Check(undo.UndoLast(up.Id) && !up.IsReloading && up.PistolAmmo == 2, "Undo reload restores state without giving ammo");
 Check(!undo.UndoLast(up.Id), "Undo is consumed once");
 up.WeaponTime = 15;
-undo.EnqueueCommand(new SelectWeaponCommand(up.Id, WeaponKind.Shotgun));
+undo.EnqueueCommand(new SelectWeaponCommand(undo, up.Id, WeaponKind.Shotgun));
 undo.Update(dt, empty);
-undo.EnqueueCommand(new UndoCommand(up.Id));
+undo.EnqueueCommand(new UndoCommand(undo, up.Id));
 undo.Update(dt, empty);
 Check(up.Weapon == WeaponKind.Pistol, "Queued undo restores previous weapon");
-undo.EnqueueCommand(new ReloadCommand(up.Id));
+undo.EnqueueCommand(new ReloadCommand(undo, up.Id));
 undo.Update(dt, empty);
 for (int i = 0; i < 80; i++) undo.Update(dt, empty);
 Check(!undo.UndoLast(up.Id) && up.PistolAmmo == 12, "Completed reload cannot be undone");
-undo.EnqueueCommand(new SelectWeaponCommand(up.Id, WeaponKind.Shotgun));
+undo.EnqueueCommand(new SelectWeaponCommand(undo, up.Id, WeaponKind.Shotgun));
 undo.Update(dt, new Dictionary<int, PlayerInput> { [up.Id] = new(Vector2.Zero, Vector2.UnitX, true) });
 Check(!undo.UndoLast(up.Id), "Undo rejected after firing changes state");
 var textOutput = new List<string>();
@@ -282,13 +274,20 @@ facade.Tick(dt);
 Check(facade.Session.Players[0].Position.X > 640 && facade.Session.Bullets.Count == 1,
     "Facade coordinates input, commands and simulation");
 var replica = new GameSession();
-int remoteEvents = 0;
-replica.EventOccurred += _ => remoteEvents++;
+var remoteEvents = new List<GameEvent>();
+replica.Attach(new RecordingObserver(remoteEvents));
 var snapshot = facade.Snapshot();
 replica.ApplySnapshot(snapshot);
 replica.ApplySnapshot(snapshot);
 Check(replica.Wave == facade.Session.Wave && replica.Players[0].Position == facade.Session.Players[0].Position &&
-    remoteEvents == snapshot.Events.Length, "Snapshot reproduces state and deduplicates Observer events");
+    remoteEvents.Count == snapshot.Events.Length, "Snapshot reproduces state and deduplicates Observer events");
+var detached = new List<GameEvent>();
+var detachedObserver = new RecordingObserver(detached);
+var subject = new GameSession(mode: new TestMode());
+subject.Attach(detachedObserver);
+subject.Detach(detachedObserver);
+subject.Update(dt, empty);
+Check(subject.Wave == 1 && detached.Count == 0, "Detached observer receives no notifications");
 
 var pelletSession = new GameSession();
 var pelletPlayer = pelletSession.Players[0];
@@ -306,7 +305,7 @@ foreach (var kind in new[] { ZombieKind.Runner, ZombieKind.Brute })
     Check(rewards.Score == expected, $"{kind} score uses archetype reward");
 }
 facade.Session.Players[0].PistolAmmo = 1;
-facade.Queue(new ReloadCommand(facade.Session.Players[0].Id));
+facade.Queue(new ReloadCommand(facade.Session, facade.Session.Players[0].Id));
 facade.ClearInputs();
 facade.Tick(dt);
 Check(!facade.Session.Players[0].IsReloading, "Disconnect cleanup discards queued commands");
@@ -422,4 +421,8 @@ sealed class TestMode(ZombieKind kind = ZombieKind.Walker) : IGameMode
 sealed class RecordingOutput(List<string> messages) : INotificationOutput
 {
     public void Write(string text) => messages.Add(text);
+}
+sealed class RecordingObserver(List<GameEvent> events) : IGameObserver
+{
+    public void OnGameEvent(GameEvent message) => events.Add(message);
 }

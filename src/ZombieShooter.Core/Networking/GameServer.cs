@@ -6,7 +6,7 @@ using ZombieShooter.Core.Commands;
 namespace ZombieShooter.Core.Networking;
 
 // One authoritative two-player match. Both connections are required to advance.
-public sealed class GameServer : IAsyncDisposable, INotificationOutput
+public sealed class GameServer : IAsyncDisposable, INotificationOutput, IGameObserver
 {
     private readonly TcpListener _listener;
     private readonly CancellationTokenSource _stop = new();
@@ -17,21 +17,24 @@ public sealed class GameServer : IAsyncDisposable, INotificationOutput
     private readonly List<Task> _connections = new();
     private Task? _accept;
     private Task? _ticks;
+    private readonly WaveNotification _waveNotice;
+    private readonly PickupNotification _pickupNotice;
     public int Port => ((IPEndPoint)_listener.LocalEndpoint).Port;
     public GameServer(int port = 7777, GamePreset preset = GamePreset.Normal)
     {
         _listener = new TcpListener(IPAddress.Loopback, port);
         _game = GameFacade.CreatePreset(preset, 2, Environment.TickCount);
-        var wave = new WaveNotification(this);
-        var pickup = new PickupNotification(this);
-        _game.Session.EventOccurred += e =>
-        {
-            if (e.Name is "WaveStarted" or "WaveCleared" or "WeaponsUpgraded") wave.Show(e);
-            else if (e.Name == "PickupCollected") pickup.Show(e);
-        };
+        _waveNotice = new WaveNotification(this);
+        _pickupNotice = new PickupNotification(this);
+        _game.Session.Attach(this);
     }
     // Bridge output and Observer subscriber share the existing server host.
     public void Write(string text) => Console.WriteLine(text);
+    public void OnGameEvent(GameEvent message)
+    {
+        if (message.Name is "WaveStarted" or "WaveCleared" or "WeaponsUpgraded") _waveNotice.Show(message);
+        else if (message.Name == "PickupCollected") _pickupNotice.Show(message);
+    }
 
     public void Start()
     {
@@ -93,10 +96,10 @@ public sealed class GameServer : IAsyncDisposable, INotificationOutput
                         foreach (var action in input.Actions)
                             _game.Queue(action switch
                             {
-                                NetworkAction.Reload => new ReloadCommand(playerId),
-                                NetworkAction.Pistol => new SelectWeaponCommand(playerId, WeaponKind.Pistol),
-                                NetworkAction.Shotgun => new SelectWeaponCommand(playerId, WeaponKind.Shotgun),
-                                _ => new UndoCommand(playerId)
+                                NetworkAction.Reload => new ReloadCommand(_game.Session, playerId),
+                                NetworkAction.Pistol => new SelectWeaponCommand(_game.Session, playerId, WeaponKind.Pistol),
+                                NetworkAction.Shotgun => new SelectWeaponCommand(_game.Session, playerId, WeaponKind.Shotgun),
+                                _ => new UndoCommand(_game.Session, playerId)
                             });
                     response = Frame(slot);
                 }

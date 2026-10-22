@@ -4,7 +4,7 @@ Užfiksuota 2026-10-15 vykdant `ZombieShooter.Core.Tests` su .NET 8, Linux x64. 
 
 ## Eksperimentas
 
-1. `original = EntityFactory.BuildArchetype(ZombieKind.Walker)` sukuria archetipą ir jo AttackProfile (`Damage = 10`).
+1. `original = new ZombieDirector(new ZombieBuilder()).Construct(ZombieKind.Walker)` sukuria archetipą ir jo AttackProfile (`Damage = 10`).
 2. `shallow = original.ShallowClone()` kopijuoja archetipą, bet išsaugo AttackProfile nuorodą.
 3. `deep = original.Clone()` kopijuoja ir archetipą, ir AttackProfile.
 4. `shallow.Attack.Damage = 77` pakeičia shallow bei originalo žalą, tačiau nepakeičia deep kopijos.

@@ -62,14 +62,13 @@ match ends when everyone dies. The high score lasts for the process lifetime.
 - `ZombieShooter.Core.Tests`: regression tests and the Prototype experiment.
 
 [Requirements and pattern mapping](docs/PROJEKTO_APRASAS.md) record the coursework
-criteria and current implementation. Nightmare has been removed to simplify the
-code. The project deliberately has **three strategies instead of four, one content
-family instead of two, and one concrete builder instead of two**.
+criteria and current implementation. Each pattern follows the GoF structure used
+in the course slides.
 
-`NormalContent` serves as the content factory, normal wave Strategy, drop policy,
-and concrete Builder. It supplies three product interfaces; wave and drop rules
-share the stateless content object, while entity construction uses a fresh builder.
-`GameFacade.CreatePreset` exposes Normal, Horde, and Brute to desktop and server.
+`ZombieDirector` runs one recipe per zombie kind on a `ZombieBuilder`; the
+resulting archetypes are Prototype templates cloned on each spawn. Modes differ
+only by wave Strategy (`NormalMode`, `HordeMode`, `BruteMode`), and
+`GameFacade.CreatePreset` exposes Normal, Horde and Brute to desktop and server.
 
 The desktop game and server also implement `INotificationOutput`: the same hosts
 are Facade clients, Observer subscribers, and the two Bridge output implementations.

@@ -53,57 +53,50 @@ Tegu `w` – banga, `p` – žaidėjų skaičius:
 
 | Pasirinkimas / strategija | Priešų kiekis | Atsiradimo intervalas | Pertrauka | Sudėtis |
 |---|---|---|---|---|
-| Normal / NormalContent | `(4 + 3w) × p` | `max(0,18; 0,85 − 0,035w)` | 4 s | Runner nuo 3, Brute nuo 5 |
+| Normal / NormalMode | `(4 + 3w) × p` | `max(0,18; 0,85 − 0,035w)` | 4 s | Runner nuo 3, Brute nuo 5 |
 | Horde / HordeMode | `(10 + 5w) × p` | `max(0,08; 0,35 − 0,01w)` | 2 s | Walker |
 | Brute / BruteMode | `(2 + w) × p` | `max(0,3; 1,2 − 0,04w)` | 5 s | Brute |
 
-Normal šeimoje daiktas iškrenta su 22 % tikimybe: pusė gydymas, pusė shotgun.
-Horde ir Brute taip pat naudoja Normal turinį. Atskiro šeimos parinkimo nėra.
+Visuose režimuose daiktas iškrenta su 22 % tikimybe: pusė gydymas, pusė shotgun.
+Režimai skiriasi tik bangų strategija; zombių parametrai ir daiktai nesikeičia.
 
 ## 3. Šablonai ir dokumentuoti minimumai
 
-Nightmare pašalintas sąmoningai paprastinant kodą. Trys ankstesni minimumai
-nebeįvykdomi: yra 3 iš 4 strategijų, 1 iš 2 turinio šeimų ir 1 iš 2 konkrečių
-builderių. Tai priimti nukrypimai, o ne visų ankstesnių reikalavimų įvykdymas.
-Viena klasė gali atlikti kelių šablonų vaidmenis; dalyviai skaičiuojami kiekvienam
-šablonui atskirai.
+Kiekvienas šablonas atitinka paskaitų skaidrėse pateiktą GoF struktūrą. Viena klasė
+gali atlikti kelių šablonų vaidmenis; dalyviai skaičiuojami kiekvienam šablonui atskirai.
 
-| Šablonas | Kodo dalyviai ir paskirtis | Dabartinė būsena ir kriterijus |
+| Šablonas | GoF vaidmenys → kodo dalyviai | Dabartinė būsena ir kriterijus |
 |---|---|---|
-| Singleton | HighScores: Lazy instancija ir Interlocked maksimumas | Viena instancija; 10 000 lygiagrečių atnaujinimų patikra |
-| Factory Method | ZombieCreator; WalkerCreator, RunnerCreator, BruteCreator → Walker, Runner, Brute | 3 konkrečios produktų klasės |
-| Abstract Factory | IContentFactory; NormalContent | 1 šeima ir 3 produktai: EntityFactory, IGameMode, IDropPolicy. **2 šeimų minimumas neįvykdytas.** |
-| Strategy | IGameMode; NormalContent, HordeMode, BruteMode | 3 pasirenkamos strategijos. **4 strategijų minimumas neįvykdytas.** |
-| Observer | GameSession.EventOccurred → HUD, serverio pranešimai ir fasado įvykių eilė | Veikiantys prenumeratoriai ir sekų diagrama |
-| Builder | ZombieBuilder; NormalContent; EntityFactory valdo receptus | 1 naudojamas konkretus builderis. **2 builderių minimumas neįvykdytas.** |
-| Prototype | IPrototype, ZombieArchetype, AttackProfile; EntityFactory saugo ir klonuoja šablonus | Deep / shallow kopijos, nuorodos, adresai ir sąnaudos |
-| Decorator | IWeapon, WeaponStats, WeaponDecorator; DamageBonus, FireRateBonus, MagazineSizeBonus | 3 vienu metu taikomi sluoksniai |
-| Command | IGameCommand, PlayerCommand, ReloadCommand, SelectWeaponCommand, UndoCommand; CommandDispatcher | Būseną išsaugantis ir galiojimą tikrinantis Undo |
-| Adapter | IPlayerInputSource; KeyboardMouseAdapter / KeyboardMouseDevice; ControllerAdapter / ControllerDevice | 2 adapteriai; vienas Read sujungia 3 įrenginio operacijas |
-| Facade | GameFacade → InputBuffer, CommandDispatcher, GameSession | 3 posistemės; desktop ir serveris – 2 klientai |
-| Bridge | GameNotification → WaveNotification, PickupNotification; INotificationOutput → ZombieShooterGame, GameServer | 2 abstrakcijos ir 2 realizacijos |
+| Singleton | Singleton → HighScores: privatus konstruktorius, `static Instance`, Lazy holder (SingletonHolder variantas) ir Interlocked maksimumas | Viena instancija; 10 000 lygiagrečių atnaujinimų patikra |
+| Factory Method | Creator → ZombieCreator (`Spawn()` = AnOperation, kviečia `Create()`); ConcreteCreator → WalkerCreator, RunnerCreator, BruteCreator; Product → Zombie; ConcreteProduct → Walker, Runner, Brute | 3 konkretūs kūrėjai ir 3 produktų klasės |
+| Strategy | Strategy → IGameMode; ConcreteStrategy → NormalMode, HordeMode, BruteMode; Context → GameSession | 3 pasirenkamos strategijos |
+| Observer | Subject → IGameSubject / GameSession (`Attach`, `Detach`, `Notify`); Observer → IGameObserver (`OnGameEvent` = update); ConcreteObserver → ZombieShooterGame, GameServer, GameFacade | 3 prenumeratoriai, atjungimo patikra ir sekų diagrama |
+| Builder | Director → ZombieDirector; Builder / ConcreteBuilder → ZombieBuilder (`Reset()`, grandininiai žingsniai ir `Build()` su tikrinimu); Product → ZombieArchetype | 1 builderis; direktorius saugo 3 receptus (Walker, Runner, Brute) |
+| Prototype | Prototype → IPrototype; ConcretePrototype → ZombieArchetype, AttackProfile; Client → EntityFactory saugo ir klonuoja šablonus | Deep / shallow kopijos, nuorodos, adresai ir sąnaudos |
+| Decorator | Component → IWeapon; ConcreteComponent → WeaponStats; Decorator → WeaponDecorator; ConcreteDecorator → DamageBonus, FireRateBonus, MagazineSizeBonus | 3 vienu metu taikomi sluoksniai |
+| Command | Command → IGameCommand (`Execute()`, `Undo()`); ConcreteCommand → ReloadCommand, SelectWeaponCommand, UndoCommand (receiver ir būsena); Receiver → GameSession; Invoker → CommandDispatcher; Client → ZombieShooterGame, GameServer | Būseną išsaugantis ir galiojimą tikrinantis Undo |
+| Adapter | Target → IPlayerInputSource; Adapter → KeyboardMouseAdapter, ControllerAdapter; Adaptee → KeyboardMouseDevice, ControllerDevice (object adapter) | 2 adapteriai; vienas Read sujungia 3 įrenginio operacijas |
+| Facade | Facade → GameFacade; posistemės → InputBuffer, CommandDispatcher, GameSession | 3 posistemės; desktop ir serveris – 2 klientai |
+| Bridge | Abstraction → GameNotification; RefinedAbstraction → WaveNotification, PickupNotification; Implementor → INotificationOutput; ConcreteImplementor → ZombieShooterGame, GameServer | 2 abstrakcijos ir 2 realizacijos |
 
-`NormalContent` apjungia keturis susijusius vaidmenis: turinio gamyklą, bangų
-strategiją, daiktų kritimo taisykles ir konkretų builderį. Gamykla sukuria
-EntityFactory, o per `CreateGameMode()` ir `CreateDropPolicy()` grąžina save kaip
-du skirtingus produktų interfeisus.
+`EntityFactory` sukuria `ZombieBuilder` ir perduoda jį `ZombieDirector`. Builder žino,
+KAIP pagaminti dalį, o Director – KOKIA TVARKA kviesti žingsnius (`Reset()` → `OfKind`
+→ … → `Build()`); taip sukuriama po vieną archetipą kiekvienai zombio rūšiai. Tie
+archetipai yra Prototype šablonai: kiekvienas atsiradimas juos klonuoja ir perduoda
+Factory Method kūrėjui, kurio `Spawn()` pritaiko bangos priedus ir kviečia `Create()`.
 
-`EntityFactory` naudoja naują NormalContent builderį. Builderio konfigūracija
-nepriklauso nuo kitų sesijų, o bangų ir daiktų metodai neturi kintamos būsenos.
-HordeMode ir BruteMode lieka atskiros strategijos: iš viso trys. Nebėra antros
-turinio šeimos, antro builderio ar EntityFactory poklasio.
+Horde ir Brute keičia tik `IGameMode` strategiją. Strategija parenkama sesijos pradžioje
+(F3 arba serverio argumentu), nes režimo pakeitimas pradeda naują sesiją.
 
-`ZombieShooterGame` ir `GameServer` yra fasado klientai, Observer prenumeratoriai
-ir dvi Bridge išvesties realizacijos (`INotificationOutput`). Pranešimai priklauso
-nuo išvesties sąsajos; atskirų HUD ir konsolės forwarding klasių nebereikia.
+`GameSession` kaip Subject saugo `IGameObserver` sąrašą ir apie įvykius praneša per
+`Notify()`. `ZombieShooterGame` ir `GameServer` yra fasado klientai, Observer
+prenumeratoriai ir dvi Bridge išvesties realizacijos (`INotificationOutput`).
+`GameFacade` taip pat prenumeruoja sesiją ir kaupia sunumeruotą įvykių žurnalą snapshot'ams.
+
+Kiekviena komanda kaip GoF ConcreteCommand konstruktoriuje gauna savo receiver
+(`GameSession`), o `Execute()` ir `Undo()` neturi parametrų. Invoker (`CommandDispatcher`)
+komandų vidaus nežino, tik jas kviečia ir saugo istoriją.
 `WeaponStats` yra nekintamas Decorator komponentas ir snapshot ginklo duomenys.
-Pistol ir Shotgun yra du šio tipo duomenų rinkiniai; trys konkretūs dekoratoriai
-lieka atskiros klasės. Bendri baziniai duomenys nekinta dekoruojant vieną žaidėją.
-`ZombieCreator.Create()` yra tiesioginis Factory Method be papildomo forwarding metodo.
-
-Strategy keičia bangų algoritmą. Bridge atskiria pranešimo rūšį nuo išvesties vietos.
-Adapter suderina įrenginio API su PlayerInput. Trumpi produktų ir adapterių tipai
-palikti dėl nurodytų kriterijų; papildomų režimų kombinacijų ar forwarding klasių nėra.
 
 Jeigu taikomas reikalavimas „bent 3 nesikartojantys šablonai studentui“, tikrieji
 autoriai turi įrašyti savo atsakomybes. Šis dokumentas autorystės nepatvirtina.
@@ -137,7 +130,8 @@ sequenceDiagram
     Host->>Facade: Tick(dt)
     Facade->>Session: Update(dt, inputs)
     Session->>Session: Baigti bangą, patobulinti ginklus
-    Session->>Facade: EventOccurred(WaveCleared)
+    Session->>Session: Notify(WaveCleared)
+    Session->>Facade: OnGameEvent(WaveCleared)
     Facade->>Facade: Pridėti įvykį su sekos numeriu
     Session->>Host: OnGameEvent(WaveCleared)
     Host->>Notice: Show(event)

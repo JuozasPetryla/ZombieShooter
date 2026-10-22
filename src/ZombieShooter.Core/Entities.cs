@@ -77,37 +77,18 @@ public sealed class EntityFactory
     private int _nextId;
     private readonly Dictionary<ZombieKind, ZombieArchetype> _templates = new();
 
-    public EntityFactory(ZombieBuilder? builder = null)
+    // The builder makes one prototype per kind; spawns clone it.
+    public EntityFactory()
     {
-        builder ??= new NormalContent();
+        var director = new ZombieDirector(new ZombieBuilder());
         foreach (var kind in Enum.GetValues<ZombieKind>())
-            _templates[kind] = BuildArchetype(kind, builder);
-    }
-    // Builder director role: the content factory uses these construction recipes.
-    public static ZombieArchetype BuildArchetype(ZombieKind kind, ZombieBuilder? builder = null)
-    {
-        builder ??= new NormalContent();
-        return kind switch
-        {
-            ZombieKind.Walker => builder.OfKind(kind).WithHealth(60).WithSpeed(70f)
-                .WithRadius(14f).WithXpReward(10).WithAttack(10, 0.65f).Build(),
-            ZombieKind.Runner => builder.OfKind(kind).WithHealth(35).WithSpeed(125f)
-                .WithRadius(14f).WithXpReward(15).WithAttack(8, 0.5f).Build(),
-            ZombieKind.Brute => builder.OfKind(kind).WithHealth(150).WithSpeed(48f)
-                .WithRadius(22f).WithXpReward(25).WithAttack(20, 1.2f).Build(),
-            _ => throw new ArgumentOutOfRangeException(nameof(kind))
-        };
+            _templates[kind] = director.Construct(kind);
     }
 
     public Player CreatePlayer(Vector2 position) => new(++_nextId, position);
 
-    public Zombie CreateZombie(Vector2 position, ZombieKind kind, int wave)
-    {
-        var archetype = _templates[kind].Clone();
-        archetype.Health += (wave - 1) * 5;
-        archetype.Speed += Math.Min(wave - 1, 20) * 2;
-        return ZombieCreators[kind].Create(++_nextId, position, archetype);
-    }
+    public Zombie CreateZombie(Vector2 position, ZombieKind kind, int wave) =>
+        ZombieCreators[kind].Spawn(++_nextId, position, _templates[kind].Clone(), wave);
 
     public Bullet CreateBullet(Vector2 position, Vector2 direction, int ownerId, int damage)
         => new(++_nextId, position, direction * 650, ownerId, damage);

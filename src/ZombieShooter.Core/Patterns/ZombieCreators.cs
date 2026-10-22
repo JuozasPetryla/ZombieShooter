@@ -2,10 +2,17 @@ using System.Numerics;
 
 namespace ZombieShooter.Core;
 
-// Factory Method: the creator delegates the concrete product choice to subclasses.
+// Factory Method: Spawn() is the creator's shared operation; subclasses decide which product Create() makes.
 public abstract class ZombieCreator
 {
     public abstract Zombie Create(int id, Vector2 position, ZombieArchetype archetype);
+
+    public Zombie Spawn(int id, Vector2 position, ZombieArchetype archetype, int wave)
+    {
+        archetype.Health += (wave - 1) * 5;
+        archetype.Speed += Math.Min(wave - 1, 20) * 2;
+        return Create(id, position, archetype);
+    }
 }
 public sealed class Walker(int id, Vector2 position, ZombieArchetype archetype) : Zombie(id, position, archetype);
 public sealed class Runner(int id, Vector2 position, ZombieArchetype archetype) : Zombie(id, position, archetype);

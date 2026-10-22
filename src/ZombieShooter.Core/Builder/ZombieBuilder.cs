@@ -1,15 +1,27 @@
 namespace ZombieShooter.Core;
 
-// Builder: validates a configurable archetype before creating it.
-public abstract class ZombieBuilder
+// Builder: knows HOW each part is made; Reset() starts a new product.
+public sealed class ZombieBuilder
 {
-    private ZombieKind _kind = ZombieKind.Walker;
-    private int _health = 60;
-    private float _speed = 70f;
-    private float _radius = 14f;
-    private int _xpReward = 10;
-    private int _attackDamage = 10;
-    private float _attackCooldown = 0.65f;
+    private ZombieKind _kind;
+    private int _health;
+    private float _speed;
+    private float _radius;
+    private int _xpReward;
+    private int _attackDamage;
+    private float _attackCooldown;
+
+    public ZombieBuilder Reset()
+    {
+        _kind = ZombieKind.Walker;
+        _health = 0;
+        _speed = 0;
+        _radius = 0;
+        _xpReward = 0;
+        _attackDamage = 0;
+        _attackCooldown = 0;
+        return this;
+    }
 
     public ZombieBuilder OfKind(ZombieKind kind) { _kind = kind; return this; }
     public ZombieBuilder WithHealth(int health) { _health = health; return this; }
@@ -42,4 +54,19 @@ public abstract class ZombieBuilder
             Attack = new AttackProfile { Damage = _attackDamage, Cooldown = _attackCooldown }
         };
     }
+}
+
+// Director: knows the ORDER of steps (the recipe) for each zombie kind.
+public sealed class ZombieDirector(ZombieBuilder builder)
+{
+    public ZombieArchetype Construct(ZombieKind kind) => kind switch
+    {
+        ZombieKind.Walker => builder.Reset().OfKind(kind).WithHealth(60).WithSpeed(70f)
+            .WithRadius(14f).WithXpReward(10).WithAttack(10, 0.65f).Build(),
+        ZombieKind.Runner => builder.Reset().OfKind(kind).WithHealth(35).WithSpeed(125f)
+            .WithRadius(14f).WithXpReward(15).WithAttack(8, 0.5f).Build(),
+        ZombieKind.Brute => builder.Reset().OfKind(kind).WithHealth(150).WithSpeed(48f)
+            .WithRadius(22f).WithXpReward(25).WithAttack(20, 1.2f).Build(),
+        _ => throw new ArgumentOutOfRangeException(nameof(kind))
+    };
 }
