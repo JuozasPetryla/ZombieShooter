@@ -199,7 +199,7 @@ package "ZombieShooter.Core" {
     {field} -readonly _zombies : List<Zombie>
     {field} -readonly _bullets : List<Bullet>
     {field} -readonly _pickups : List<Pickup>
-    {field} ~Commands : CommandDispatcher { get; }
+    {field} +Commands : CommandDispatcher { get; }
     {field} -_spawnTimer : float
     {field} -_remainingSpawns : int
     {field} +Players : IReadOnlyList<Player> { get; }
@@ -214,12 +214,13 @@ package "ZombieShooter.Core" {
     {field} -readonly _observers : List<IGameObserver>
     {method} +Attach(IGameObserver observer) : void
     {method} +Detach(IGameObserver observer) : void
+    {method} -IGameSubject.Notify(GameEvent message) : void
     {method} -Notify(GameEvent message) : void
     {method} +GameSession(int playerCount = 1, int seed = 1, IGameMode? mode = null)
     {method} +EnqueueCommand(IGameCommand command) : bool
     {method} +TryReload(int playerId) : bool
     {method} +TrySelectWeapon(int playerId, WeaponKind weapon) : bool
-    {method} ~DiscardPendingCommands() : void
+    {method} +DiscardPendingCommands() : void
     {method} +UndoLast(int playerId) : bool
     {method} +Update(float dt, IReadOnlyDictionary<int, PlayerInput> inputs) : void
     {method} -{static} SafeDirection(Vector2 value, bool normalize) : Vector2
@@ -252,6 +253,7 @@ package "ZombieShooter.Core" {
   interface "IGameSubject" as ZombieShooter_Core_IGameSubject {
     {method} +Attach(IGameObserver observer) : void
     {method} +Detach(IGameObserver observer) : void
+    {method} +Notify(GameEvent message) : void
   }
   interface "INotificationOutput" as ZombieShooter_Core_INotificationOutput {
     {method} +Write(string text) : void
@@ -266,6 +268,12 @@ package "ZombieShooter.Core" {
     {field} +Pellets : int { get; }
     {field} +MagazineSize : int { get; }
     {field} +ReloadTime : float { get; }
+    {method} +Shoot(Player player, EntityFactory factory, ICollection<Bullet> bullets) : bool
+    {method} +Reload(Player player) : bool
+    {method} +AdvanceReload(Player player, float dt) : bool
+    {method} +Shoot(Player player, EntityFactory factory, ICollection<Bullet> bullets, WeaponStats? stats) : bool
+    {method} +Reload(Player player, WeaponStats? stats) : bool
+    {method} +AdvanceReload(Player player, float dt, WeaponStats? stats) : bool
   }
   class "InputBuffer" as ZombieShooter_Core_InputBuffer <<sealed>> {
     {field} -readonly _inputs : Dictionary<int, PlayerInput>
@@ -386,7 +394,22 @@ package "ZombieShooter.Core" {
     {method} +WaveNotification(INotificationOutput output) <<primary constructor>>
     {method} +override Show(GameEvent message) : void
   }
-  abstract class "WeaponDecorator" as ZombieShooter_Core_WeaponDecorator {
+  class "Weapon" as ZombieShooter_Core_Weapon {
+    {method} +Weapon(WeaponKind kind, int damage, float fireCooldown, int pellets, int magazineSize, float reloadTime) <<primary constructor>>
+    {field} +Kind : WeaponKind { get; }
+    {field} +Damage : int { get; }
+    {field} +FireCooldown : float { get; }
+    {field} +Pellets : int { get; }
+    {field} +MagazineSize : int { get; }
+    {field} +ReloadTime : float { get; }
+    {method} +Shoot(Player player, EntityFactory factory, ICollection<Bullet> bullets) : bool
+    {method} +Reload(Player player) : bool
+    {method} +AdvanceReload(Player player, float dt) : bool
+    {method} +Shoot(Player player, EntityFactory factory, ICollection<Bullet> bullets, WeaponStats? stats) : bool
+    {method} +Reload(Player player, WeaponStats? stats) : bool
+    {method} +AdvanceReload(Player player, float dt, WeaponStats? stats) : bool
+  }
+  class "WeaponDecorator" as ZombieShooter_Core_WeaponDecorator {
     {method} +WeaponDecorator(IWeapon inner) <<primary constructor>>
     {field} #Inner : IWeapon { get; }
     {field} +virtual Kind : WeaponKind { get; computed }
@@ -395,6 +418,12 @@ package "ZombieShooter.Core" {
     {field} +virtual Pellets : int { get; computed }
     {field} +virtual MagazineSize : int { get; computed }
     {field} +virtual ReloadTime : float { get; computed }
+    {method} +Shoot(Player player, EntityFactory factory, ICollection<Bullet> bullets) : bool
+    {method} +Reload(Player player) : bool
+    {method} +AdvanceReload(Player player, float dt) : bool
+    {method} +virtual Shoot(Player player, EntityFactory factory, ICollection<Bullet> bullets, WeaponStats? stats) : bool
+    {method} +virtual Reload(Player player, WeaponStats? stats) : bool
+    {method} +virtual AdvanceReload(Player player, float dt, WeaponStats? stats) : bool
   }
   enum "WeaponKind" as ZombieShooter_Core_WeaponKind {
     Pistol
@@ -410,6 +439,7 @@ package "ZombieShooter.Core" {
     {field} +ReloadTime : float { get; init; }
     {field} +{static} readonly Pistol : WeaponStats
     {field} +{static} readonly Shotgun : WeaponStats
+    {method} +ToWeapon() : Weapon
     {method} +{static} From(IWeapon weapon) : WeaponStats
   }
   class "Zombie" as ZombieShooter_Core_Zombie {
@@ -482,42 +512,41 @@ package "ZombieShooter.Core.Commands" {
     {field} -readonly _pending : Queue<IGameCommand>
     {field} -readonly _last : Dictionary<int, IGameCommand>
     {method} +Queue(IGameCommand command) : bool
-    {method} ~ExecutePending() : void
-    {method} ~UndoLast(int playerId) : bool
-    {method} ~Clear() : void
+    {method} +ExecutePending() : void
+    {method} +UndoLast(int playerId) : bool
+    {method} +Clear() : void
   }
   interface "IGameCommand" as ZombieShooter_Core_Commands_IGameCommand {
     {field} +PlayerId : int { get; }
-    {method} +Execute() : bool
-    {method} +Undo() : bool
+    {method} +Execute(GameSession session) : bool
+    {method} +Undo(GameSession session) : bool
   }
   abstract class "PlayerCommand" as ZombieShooter_Core_Commands_PlayerCommand {
-    {method} +PlayerCommand(GameSession receiver, int playerId) <<primary constructor>>
+    {method} +PlayerCommand(int playerId) <<primary constructor>>
     {field} +PlayerId : int { get; }
-    {field} #Receiver : GameSession { get; }
+    {field} -_receiver : GameSession?
     {field} -_executed : bool
     {field} -_weapon : WeaponKind
     {field} -_reload : float
     {field} -_version : long
-    {method} +Execute() : bool
-    {method} #{abstract} Apply() : bool
-    {method} +Undo() : bool
+    {method} +Execute(GameSession session) : bool
+    {method} +{abstract} Apply(GameSession session) : bool
+    {method} +Undo(GameSession session) : bool
   }
   class "ReloadCommand" as ZombieShooter_Core_Commands_ReloadCommand <<sealed>> {
-    {method} +ReloadCommand(GameSession receiver, int playerId) <<primary constructor>>
-    {method} #override Apply() : bool
+    {method} +ReloadCommand(int playerId) <<primary constructor>>
+    {method} +override Apply(GameSession session) : bool
   }
   class "SelectWeaponCommand" as ZombieShooter_Core_Commands_SelectWeaponCommand <<sealed>> {
-    {method} +SelectWeaponCommand(GameSession receiver, int playerId, WeaponKind weapon) <<primary constructor>>
+    {method} +SelectWeaponCommand(int playerId, WeaponKind weapon) <<primary constructor>>
     {field} +Weapon : WeaponKind { get; }
-    {method} #override Apply() : bool
+    {method} +override Apply(GameSession session) : bool
   }
   class "UndoCommand" as ZombieShooter_Core_Commands_UndoCommand <<sealed>> {
-    {method} +UndoCommand(GameSession receiver, int playerId) <<primary constructor>>
-    {field} -receiver : GameSession <<captured parameter>>
+    {method} +UndoCommand(int playerId) <<primary constructor>>
     {field} +PlayerId : int { get; }
-    {method} +Execute() : bool
-    {method} +Undo() : bool
+    {method} +Execute(GameSession session) : bool
+    {method} +Undo(GameSession session) : bool
   }
 }
 package "ZombieShooter.Core.Networking" {
@@ -547,10 +576,10 @@ package "ZombieShooter.Core.Networking" {
     {method} +Write(string text) : void
     {method} +OnGameEvent(GameEvent message) : void
     {method} +Start() : void
-    {method} -async AcceptAsync() : Task
-    {method} -Frame(int slot) : ServerFrame
-    {method} -async ServeAsync(TcpClient client, int slot) : Task
-    {method} -async TickAsync() : Task
+    {method} +async AcceptAsync() : Task
+    {method} +Frame(int slot) : ServerFrame
+    {method} +async ServeAsync(TcpClient client, int slot) : Task
+    {method} +async TickAsync() : Task
     {method} +async DisposeAsync() : ValueTask
   }
   enum "NetworkAction" as ZombieShooter_Core_Networking_NetworkAction {
@@ -575,7 +604,7 @@ package "ZombieShooter.Core.Networking" {
     {method} +{static} async ConnectAsync(string host, int port = 7777) : Task<NetworkGameClient>
     {method} +SetInput(PlayerInput input) : void
     {method} +Queue(NetworkAction action) : bool
-    {method} -async ExchangeAsync() : Task
+    {method} +async ExchangeAsync() : Task
     {method} +Dispose() : void
   }
   class "ServerFrame" as ZombieShooter_Core_Networking_ServerFrame <<record, sealed>> {
@@ -605,8 +634,8 @@ ZombieShooter_Core_GameSession "0..*" --> "1" ZombieShooter_Core_IGameMode : mod
 ZombieShooter_Core_GameSession "0..1" *-- "1" ZombieShooter_Core_EntityFactory
 ZombieShooter_Core_WeaponDecorator "0..*" --> "1" ZombieShooter_Core_IWeapon : Inner
 ZombieShooter_Core_Player "0..*" --> "2" ZombieShooter_Core_IWeapon : pistol / shotgun
-ZombieShooter_Core_Commands_PlayerCommand "0..*" --> "1" ZombieShooter_Core_GameSession : Receiver
-ZombieShooter_Core_Commands_UndoCommand "0..*" --> "1" ZombieShooter_Core_GameSession : receiver
+ZombieShooter_Core_Commands_PlayerCommand "0..*" --> "0..1" ZombieShooter_Core_GameSession : successful execution receiver
+ZombieShooter_Core_Commands_UndoCommand ..> ZombieShooter_Core_GameSession : execution parameter
 ZombieShooter_Core_GameFacade "0..1" *-- "1" ZombieShooter_Core_InputBuffer
 ZombieShooter_Core_GameFacade "0..1" *-- "1" ZombieShooter_Core_GameSession
 ZombieShooter_Core_Commands_CommandDispatcher "0..*" --> "1" ZombieShooter_Core_GameSession
@@ -650,6 +679,8 @@ ZombieShooter_Core_SessionSnapshot "0..*" --> "1..2" ZombieShooter_Core_PlayerSn
 ZombieShooter_Core_SessionSnapshot "0..*" --> "0..*" ZombieShooter_Core_SequencedEvent
 ZombieShooter_Core_SessionSnapshot "0..*" --> "0..*" ZombieShooter_Core_ZombieSnapshot
 ZombieShooter_ZombieShooterGame "0..*" --> "1" ZombieShooter_Core_GameSession
+ZombieShooter_Core_Weapon ..> ZombieShooter_Core_EntityFactory : creates bullets via factory
+ZombieShooter_Core_GameSession ..> ZombieShooter_Core_IWeapon : Shoot / Reload / AdvanceReload
 
 External_Game <|-- ZombieShooter_ZombieShooterGame
 External_IAsyncDisposable <|.. ZombieShooter_Core_Networking_GameServer
@@ -675,8 +706,8 @@ ZombieShooter_Core_INotificationOutput <|.. ZombieShooter_Core_Networking_GameSe
 ZombieShooter_Core_INotificationOutput <|.. ZombieShooter_ZombieShooterGame
 ZombieShooter_Core_IPrototype <|.. ZombieShooter_Core_AttackProfile : IPrototype<AttackProfile>
 ZombieShooter_Core_IPrototype <|.. ZombieShooter_Core_ZombieArchetype : IPrototype<ZombieArchetype>
+ZombieShooter_Core_IWeapon <|.. ZombieShooter_Core_Weapon
 ZombieShooter_Core_IWeapon <|.. ZombieShooter_Core_WeaponDecorator
-ZombieShooter_Core_IWeapon <|.. ZombieShooter_Core_WeaponStats
 ZombieShooter_Core_WeaponDecorator <|-- ZombieShooter_Core_DamageBonus
 ZombieShooter_Core_WeaponDecorator <|-- ZombieShooter_Core_FireRateBonus
 ZombieShooter_Core_WeaponDecorator <|-- ZombieShooter_Core_MagazineSizeBonus

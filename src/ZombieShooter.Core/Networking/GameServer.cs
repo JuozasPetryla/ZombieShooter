@@ -43,7 +43,7 @@ public sealed class GameServer : IAsyncDisposable, INotificationOutput, IGameObs
         _accept = AcceptAsync();
         _ticks = TickAsync();
     }
-    private async Task AcceptAsync()
+    public async Task AcceptAsync()
     {
         try
         {
@@ -65,9 +65,9 @@ public sealed class GameServer : IAsyncDisposable, INotificationOutput, IGameObs
         catch (OperationCanceledException) when (_stop.IsCancellationRequested) { }
         catch (SocketException) when (_stop.IsCancellationRequested) { }
     }
-    private ServerFrame Frame(int slot) => new(_game.Session.Players[slot].Id,
+    public ServerFrame Frame(int slot) => new(_game.Session.Players[slot].Id,
         _game.Snapshot(_clients.Count(c => c is not null)));
-    private async Task ServeAsync(TcpClient client, int slot)
+    public async Task ServeAsync(TcpClient client, int slot)
     {
         try
         {
@@ -96,10 +96,10 @@ public sealed class GameServer : IAsyncDisposable, INotificationOutput, IGameObs
                         foreach (var action in input.Actions)
                             _game.Queue(action switch
                             {
-                                NetworkAction.Reload => new ReloadCommand(_game.Session, playerId),
-                                NetworkAction.Pistol => new SelectWeaponCommand(_game.Session, playerId, WeaponKind.Pistol),
-                                NetworkAction.Shotgun => new SelectWeaponCommand(_game.Session, playerId, WeaponKind.Shotgun),
-                                _ => new UndoCommand(_game.Session, playerId)
+                                NetworkAction.Reload => new ReloadCommand(playerId),
+                                NetworkAction.Pistol => new SelectWeaponCommand(playerId, WeaponKind.Pistol),
+                                NetworkAction.Shotgun => new SelectWeaponCommand(playerId, WeaponKind.Shotgun),
+                                _ => new UndoCommand(playerId)
                             });
                     response = Frame(slot);
                 }
@@ -120,7 +120,7 @@ public sealed class GameServer : IAsyncDisposable, INotificationOutput, IGameObs
             client.Dispose();
         }
     }
-    private async Task TickAsync()
+    public async Task TickAsync()
     {
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1.0 / 60));
         try

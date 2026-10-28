@@ -25,8 +25,8 @@ public sealed class Player(int id, Vector2 position) : Entity(id, position, 15)
     public Vector2 Aim { get; internal set; } = Vector2.UnitX;
     public WeaponKind Weapon { get; internal set; }
     public float WeaponTime { get; internal set; }
-    public IWeapon PistolGear {get; internal set; } = WeaponStats.Pistol;
-    public IWeapon ShotgunGear {get; internal set; } = WeaponStats.Shotgun;
+    public IWeapon PistolGear {get; internal set; } = WeaponStats.Pistol.ToWeapon();
+    public IWeapon ShotgunGear {get; internal set; } = WeaponStats.Shotgun.ToWeapon();
     public IWeapon Gear => Weapon == WeaponKind.Pistol ? PistolGear : ShotgunGear;
     public int PistolAmmo { get; internal set; } = 12;
     public int ShotgunAmmo { get; internal set; } = 6;

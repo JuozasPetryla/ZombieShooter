@@ -15,7 +15,7 @@ public sealed partial class GameSession : IGameSubject
     private readonly List<Zombie> _zombies = [];
     private readonly List<Bullet> _bullets = [];
     private readonly List<Pickup> _pickups = [];
-    internal CommandDispatcher Commands { get; }
+    public CommandDispatcher Commands { get; }
     private float _spawnTimer;
     private int _remainingSpawns;
 
@@ -37,6 +37,8 @@ public sealed partial class GameSession : IGameSubject
     }
     public void Detach(IGameObserver observer) => _observers.Remove(observer);
     // A copy lets an observer detach itself while being notified.
+    void IGameSubject.Notify(GameEvent message) => Notify(message);
+
     private void Notify(GameEvent message)
     {
         foreach (var observer in _observers.ToArray()) observer.OnGameEvent(message);
@@ -65,10 +67,8 @@ public sealed partial class GameSession : IGameSubject
     public bool TryReload(int playerId)
     {
         var player = _players.Find(p => p.Id == playerId);
-        if (State == SessionState.GameOver || player is null || !player.IsAlive ||
-            player.IsReloading || player.Ammo == player.MagazineSize) return false;
-        player.ReloadRemaining = player.Gear.ReloadTime;
-        player.ActionVersion++;
+        if (State == SessionState.GameOver || player is null) return false;
+        if (!player.Gear.Reload(player)) return false;
         Notify(new("ReloadStarted", player.Id));
         return true;
     }
@@ -86,7 +86,7 @@ public sealed partial class GameSession : IGameSubject
         return true;
     }
 
-    internal void DiscardPendingCommands() => Commands.Clear();
+    public void DiscardPendingCommands() => Commands.Clear();
 
     public bool UndoLast(int playerId)
     {
@@ -111,17 +111,7 @@ public sealed partial class GameSession : IGameSubject
                 player.Weapon = WeaponKind.Pistol;
                 player.ReloadRemaining = 0;
             }
-            if (player.IsReloading)
-            {
-                player.ReloadRemaining = Math.Max(0, player.ReloadRemaining - dt);
-                if (!player.IsReloading)
-                {
-                    player.ActionVersion++;
-                    if (player.Weapon == WeaponKind.Pistol) player.PistolAmmo = player.MagazineSize;
-                    else player.ShotgunAmmo = player.MagazineSize;
-                    Notify(new("ReloadCompleted", player.Id));
-                }
-            }
+            if (player.Gear.AdvanceReload(player, dt)) Notify(new("ReloadCompleted", player.Id));
         }
         // Apply discrete actions before continuous input (including held fire).
         Commands.ExecutePending();
@@ -132,7 +122,7 @@ public sealed partial class GameSession : IGameSubject
             player.Position = Clamp(player.Position + move * 220 * dt, player.Radius);
             var aim = SafeDirection(input.Aim, true);
             if (aim != Vector2.Zero) player.Aim = aim;
-            if (input.Fire && player.FireCooldown <= 0 && !player.IsReloading && player.Ammo > 0) Fire(player);
+            if (input.Fire) Fire(player);
         }
         if (State == SessionState.Intermission)
         {
@@ -196,17 +186,7 @@ public sealed partial class GameSession : IGameSubject
 
     private void Fire(Player player)
     {
-        player.ActionVersion++;
-        var gear = player.Gear;
-        if (player.Weapon == WeaponKind.Shotgun) player.ShotgunAmmo--;
-        else player.PistolAmmo--;
-        for (int i = 0; i < gear.Pellets; i++)
-        {
-            var direction = Vector2.Transform(player.Aim, Matrix3x2.CreateRotation((i - (gear.Pellets - 1) / 2f) * 0.12f));
-            _bullets.Add(_factory.CreateBullet(player.Position + player.Aim * 20, direction, player.Id, gear.Damage));
-        }
-        player.FireCooldown = gear.FireCooldown;
-        Notify(new("ShotFired", player.Id));
+        if (player.Gear.Shoot(player, _factory, _bullets)) Notify(new("ShotFired", player.Id));
     }
 
     private void SpawnZombie()

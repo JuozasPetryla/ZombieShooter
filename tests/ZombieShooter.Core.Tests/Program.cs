@@ -96,52 +96,52 @@ var commands = new GameSession(2);
 var cp = commands.Players[0];
 var partner = commands.Players[1];
 cp.PistolAmmo = 2;
-Check(commands.EnqueueCommand(new ReloadCommand(commands, cp.Id)) && !cp.IsReloading, "Enqueue defers execution");
+Check(commands.EnqueueCommand(new ReloadCommand(cp.Id)) && !cp.IsReloading, "Enqueue defers execution");
 commands.Update(0, empty);
 Check(!cp.IsReloading, "Zero tick retains queued commands");
 commands.Update(dt, empty);
 Check(cp.IsReloading && !partner.IsReloading, "Reload targets only the requested player");
 float reloadTime = cp.ReloadRemaining;
-Check(!new ReloadCommand(commands, cp.Id).Execute() && cp.ReloadRemaining == reloadTime, "Repeated reload does not restart timer");
+Check(!new ReloadCommand(cp.Id).Execute(commands) && cp.ReloadRemaining == reloadTime, "Repeated reload does not restart timer");
 commands.Update(dt, new Dictionary<int, PlayerInput> { [cp.Id] = new(Vector2.Zero, Vector2.UnitX, true) });
 Check(commands.Bullets.Count == 0, "Reload blocks held fire");
 for (int i = 0; i < 80; i++) commands.Update(dt, empty);
 Check(cp.PistolAmmo == 12 && !cp.IsReloading, "Reload completes and refills magazine");
-Check(!new ReloadCommand(commands, cp.Id).Execute(), "Full magazine cannot reload");
+Check(!new ReloadCommand(cp.Id).Execute(commands), "Full magazine cannot reload");
 cp.PistolAmmo = 1;
 commands.Update(dt, new Dictionary<int, PlayerInput> { [cp.Id] = new(Vector2.Zero, Vector2.UnitX, true) });
 Check(cp.PistolAmmo == 0, "Pistol consumes one round per shot");
 for (int i = 0; i < 20; i++) commands.Update(dt, new Dictionary<int, PlayerInput> { [cp.Id] = new(Vector2.Zero, Vector2.UnitX, true) });
 Check(cp.PistolAmmo == 0 && commands.Bullets.Count == 1, "Empty magazine cannot fire");
-Check(!new SelectWeaponCommand(commands, cp.Id, WeaponKind.Shotgun).Execute(), "Unowned shotgun selection rejected");
-Check(!new SelectWeaponCommand(commands, cp.Id, (WeaponKind)99).Execute() &&
-    !new ReloadCommand(commands, 999).Execute(), "Invalid weapon and unknown player rejected");
+Check(!new SelectWeaponCommand(cp.Id, WeaponKind.Shotgun).Execute(commands), "Unowned shotgun selection rejected");
+Check(!new SelectWeaponCommand(cp.Id, (WeaponKind)99).Execute(commands) &&
+    !new ReloadCommand(999).Execute(commands), "Invalid weapon and unknown player rejected");
 cp.WeaponTime = 15;
-commands.EnqueueCommand(new ReloadCommand(commands, cp.Id));
-commands.EnqueueCommand(new SelectWeaponCommand(commands, cp.Id, WeaponKind.Shotgun));
+commands.EnqueueCommand(new ReloadCommand(cp.Id));
+commands.EnqueueCommand(new SelectWeaponCommand(cp.Id, WeaponKind.Shotgun));
 commands.Update(dt, empty);
 Check(cp.Weapon == WeaponKind.Shotgun && !cp.IsReloading && cp.PistolAmmo == 0, "FIFO reload then switch cancels reload without granting ammo");
 commands.Update(dt, new Dictionary<int, PlayerInput> { [cp.Id] = new(Vector2.Zero, Vector2.UnitX, true) });
 Check(cp.ShotgunAmmo == 5, "Shotgun consumes one shell for all five pellets");
-commands.EnqueueCommand(new SelectWeaponCommand(commands, cp.Id, WeaponKind.Pistol));
-commands.EnqueueCommand(new ReloadCommand(commands, cp.Id));
+commands.EnqueueCommand(new SelectWeaponCommand(cp.Id, WeaponKind.Pistol));
+commands.EnqueueCommand(new ReloadCommand(cp.Id));
 commands.Update(dt, empty);
 Check(cp.Weapon == WeaponKind.Pistol && cp.IsReloading && cp.ShotgunAmmo == 5, "FIFO switch then reload targets newly selected weapon and preserves other ammo");
-new SelectWeaponCommand(commands, cp.Id, WeaponKind.Shotgun).Execute();
-new ReloadCommand(commands, cp.Id).Execute();
+new SelectWeaponCommand(cp.Id, WeaponKind.Shotgun).Execute(commands);
+new ReloadCommand(cp.Id).Execute(commands);
 cp.WeaponTime = dt / 2;
 commands.Update(dt, empty);
 Check(cp.Weapon == WeaponKind.Pistol && !cp.IsReloading && cp.PistolAmmo == 0, "Shotgun expiry cancels reload without refilling pistol");
 cp.Health = 0;
-Check(!new ReloadCommand(commands, cp.Id).Execute() &&
-    !new SelectWeaponCommand(commands, cp.Id, WeaponKind.Shotgun).Execute(), "Dead players cannot execute actions");
-Check(!combat.EnqueueCommand(new ReloadCommand(combat, shooter.Id)) &&
-    !new ReloadCommand(combat, shooter.Id).Execute(), "Game over rejects queued and direct actions");
+Check(!new ReloadCommand(cp.Id).Execute(commands) &&
+    !new SelectWeaponCommand(cp.Id, WeaponKind.Shotgun).Execute(commands), "Dead players cannot execute actions");
+Check(!combat.EnqueueCommand(new ReloadCommand(shooter.Id)) &&
+    !new ReloadCommand(shooter.Id).Execute(combat), "Game over rejects queued and direct actions");
 var capacity = new GameSession();
-for (int i = 0; i < 64; i++) capacity.EnqueueCommand(new ReloadCommand(capacity, 999));
-Check(!capacity.EnqueueCommand(new ReloadCommand(capacity, 999)), "Command queue is bounded");
+for (int i = 0; i < 64; i++) capacity.EnqueueCommand(new ReloadCommand(999));
+Check(!capacity.EnqueueCommand(new ReloadCommand(999)), "Command queue is bounded");
 capacity.Update(dt, empty);
-Check(capacity.EnqueueCommand(new ReloadCommand(capacity, 999)), "Invalid commands drain without blocking the queue");
+Check(capacity.EnqueueCommand(new ReloadCommand(999)), "Invalid commands drain without blocking the queue");
 // Quantitative pattern requirements and regression checks.
 var instances = new System.Collections.Concurrent.ConcurrentBag<HighScores>();
 Parallel.For(0, 10000, i => { instances.Add(HighScores.Instance); HighScores.Instance.Submit(i); });
@@ -210,10 +210,49 @@ foreach (var kind in Enum.GetValues<ZombieKind>())
         template.Speed == expected.Speed && template.Attack.Damage == expected.Damage,
         $"{kind} recipe preserves base combat statistics");
 }
-IWeapon decorated = new MagazineSizeBonus(new FireRateBonus(new DamageBonus(WeaponStats.Pistol, 5), 0.5f), 2);
+IWeapon decorated = new MagazineSizeBonus(new FireRateBonus(new DamageBonus(WeaponStats.Pistol.ToWeapon(), 5), 0.5f), 2);
 Check(decorated.Damage == 40 && Math.Abs(decorated.FireCooldown - 0.09f) < 0.0001f &&
     decorated.MagazineSize == 14, "Three decoration levels compose independently");
 // Shared immutable defaults must remain unchanged when one player's weapon is decorated.
+var armedPlayer = new Player(100, new Vector2(300, 300)) { PistolGear = decorated };
+var shotFactory = new EntityFactory();
+var weaponBullets = new List<Bullet>();
+Check(decorated.Shoot(armedPlayer, shotFactory, weaponBullets) &&
+    weaponBullets.Count == 1 && weaponBullets[0].Damage == 40 &&
+    armedPlayer.PistolAmmo == 11 && Math.Abs(armedPlayer.FireCooldown - 0.09f) < 0.0001f,
+    "Weapon Shoot uses the outer decorator's damage and cooldown and consumes one round");
+long shotVersion = armedPlayer.ActionVersion;
+Check(!decorated.Shoot(armedPlayer, shotFactory, weaponBullets) &&
+    armedPlayer.PistolAmmo == 11 && weaponBullets.Count == 1 && armedPlayer.ActionVersion == shotVersion,
+    "Rejected weapon shot leaves ammunition, bullets and undo version unchanged");
+Check(decorated.Reload(armedPlayer) && !decorated.Reload(armedPlayer),
+    "Weapon starts reload once");
+armedPlayer.FireCooldown = 0;
+Check(!decorated.Shoot(armedPlayer, shotFactory, weaponBullets), "Weapon blocks shots while reloading");
+Check(!decorated.AdvanceReload(armedPlayer, 0.1f) && armedPlayer.PistolAmmo == 11,
+    "Partial reload grants no ammunition");
+Check(decorated.AdvanceReload(armedPlayer, decorated.ReloadTime) &&
+    armedPlayer.PistolAmmo == 14 && !decorated.Reload(armedPlayer),
+    "Weapon reload fills the decorated magazine and rejects a full magazine");
+Check(!armedPlayer.ShotgunGear.Shoot(armedPlayer, shotFactory, weaponBullets) &&
+    !armedPlayer.ShotgunGear.Reload(armedPlayer), "Inactive weapon cannot shoot or reload");
+armedPlayer.PistolAmmo = 0;
+Check(!decorated.Shoot(armedPlayer, shotFactory, weaponBullets), "Empty weapon cannot shoot");
+armedPlayer.PistolAmmo = 1;
+armedPlayer.Health = 0;
+Check(!decorated.Shoot(armedPlayer, shotFactory, weaponBullets) && !decorated.Reload(armedPlayer),
+    "Dead player cannot use weapon operations");
+IWeapon chainedWeapon = new DamageBonus(new MagazineSizeBonus(new FireRateBonus(
+    new DamageBonus(WeaponStats.Pistol.ToWeapon(), 5), 0.5f), 2), 7);
+var chainPlayer = new Player(101, Vector2.Zero) { PistolGear = chainedWeapon };
+var chainBullets = new List<Bullet>();
+Check(chainedWeapon.Shoot(chainPlayer, shotFactory, chainBullets) && chainBullets.Single().Damage == 47 &&
+    chainPlayer.PistolAmmo == 11 && Math.Abs(chainPlayer.FireCooldown - 0.09f) < 0.0001f,
+    "Shoot applies all stacked decorator bonuses exactly once");
+Check(chainedWeapon.Reload(chainPlayer) && chainedWeapon.AdvanceReload(chainPlayer, chainedWeapon.ReloadTime) &&
+    chainPlayer.PistolAmmo == 14, "Reload fills the decorated magazine");
+var unequippedWeapon = WeaponStats.Pistol.ToWeapon();
+Check(!unequippedWeapon.Shoot(chainPlayer, shotFactory, chainBullets) && !unequippedWeapon.Reload(chainPlayer), "Unequipped weapons cannot change game state");
 var weaponSession = new GameSession(2);
 weaponSession.Players[0].PistolGear = decorated;
 Check(weaponSession.Players[1].PistolGear.Damage == 35 && WeaponStats.Pistol.Damage == 35 &&
@@ -226,27 +265,68 @@ Check(WeaponStats.From(weaponReplica.Players[0].PistolGear) == WeaponStats.From(
     WeaponStats.From(weaponReplica.Players[1].PistolGear) == WeaponStats.Pistol &&
     WeaponStats.From(weaponReplica.Players[0].ShotgunGear) == WeaponStats.Shotgun,
     "Weapon stats preserve all base and decorated properties across the JSON snapshot boundary");
+weaponSession.Update(dt, weaponSession.Players.ToDictionary(p => p.Id,
+    p => new PlayerInput(Vector2.Zero, Vector2.UnitX, true)));
+Check(weaponSession.Bullets.Count == 2 &&
+    weaponSession.Bullets.Single(b => b.OwnerId == weaponSession.Players[0].Id).Damage == 40 &&
+    weaponSession.Bullets.Single(b => b.OwnerId == weaponSession.Players[1].Id).Damage == 35 &&
+    weaponSession.Players.All(p => p.PistolAmmo == 11),
+    "Session routes each co-op player's weapon to the correct owner and bullet collection");
+var replacedPlayer = weaponSession.Players[0];
+replacedPlayer.PistolGear = new DamageBonus(replacedPlayer.PistolGear, 5);
+replacedPlayer.FireCooldown = 0;
+weaponSession.Update(dt, new Dictionary<int, PlayerInput>
+    { [replacedPlayer.Id] = new(Vector2.Zero, Vector2.UnitX, true) });
+Check(weaponSession.Bullets.Last(b => b.OwnerId == replacedPlayer.Id).Damage == 45 &&
+    replacedPlayer.PistolAmmo == 10,
+    "New decorator layers affect the next shot without rebinding");
 Check(events.Count(e => e.Name == "WaveCleared") == 1, "WaveCleared is published exactly once");
 Check(shooter.PistolGear.MagazineSize == 13 && shooter.PistolGear.Damage == 40,
     "Wave completion applies three actual weapon decorators");
+var firstReceiver = new GameSession();
+var otherReceiver = new GameSession();
+firstReceiver.Players[0].PistolAmmo = 2;
+otherReceiver.Players[0].PistolAmmo = 2;
+var scopedReload = new ReloadCommand(firstReceiver.Players[0].Id);
+Check(scopedReload.Execute(firstReceiver) && !scopedReload.Execute(otherReceiver),
+    "An executed command cannot execute twice against a different session");
+Check(!scopedReload.Undo(otherReceiver) && firstReceiver.Players[0].IsReloading &&
+    !otherReceiver.Players[0].IsReloading && scopedReload.Undo(firstReceiver),
+    "Undo rejects a different session even when player IDs and action versions match");
+var subjectEvents = new List<GameEvent>();
+IGameSubject contractSubject = new GameSession();
+contractSubject.Attach(new RecordingObserver(subjectEvents));
+contractSubject.Notify(new GameEvent("ContractProbe"));
+Check(subjectEvents.Count == 1 && subjectEvents[0].Name == "ContractProbe",
+    "IGameSubject exposes Notify and dispatches events to observers");
+var delegatedCalls = new List<string>();
+IWeapon delegated = new MagazineSizeBonus(new DamageBonus(
+    new RecordingWeapon(WeaponStats.Pistol.ToWeapon(), delegatedCalls), 9), 3);
+var delegatedPlayer = new Player(303, Vector2.Zero) { PistolGear = delegated };
+var delegatedBullets = new List<Bullet>();
+Check(delegated.Shoot(delegatedPlayer, new EntityFactory(), delegatedBullets) &&
+    delegatedBullets.Single().Damage == 44 && delegated.Reload(delegatedPlayer) &&
+    delegated.AdvanceReload(delegatedPlayer, delegated.ReloadTime) && delegatedPlayer.PistolAmmo == 15 &&
+    delegatedCalls.SequenceEqual(new[] { "Shoot", "Reload", "AdvanceReload" }),
+    "All weapon operations traverse inner wrappers and preserve outer bonuses");
 var undo = new GameSession();
 var up = undo.Players[0];
 up.PistolAmmo = 2;
-undo.EnqueueCommand(new ReloadCommand(undo, up.Id));
+undo.EnqueueCommand(new ReloadCommand(up.Id));
 undo.Update(dt, empty);
 Check(undo.UndoLast(up.Id) && !up.IsReloading && up.PistolAmmo == 2, "Undo reload restores state without giving ammo");
 Check(!undo.UndoLast(up.Id), "Undo is consumed once");
 up.WeaponTime = 15;
-undo.EnqueueCommand(new SelectWeaponCommand(undo, up.Id, WeaponKind.Shotgun));
+undo.EnqueueCommand(new SelectWeaponCommand(up.Id, WeaponKind.Shotgun));
 undo.Update(dt, empty);
-undo.EnqueueCommand(new UndoCommand(undo, up.Id));
+undo.EnqueueCommand(new UndoCommand(up.Id));
 undo.Update(dt, empty);
 Check(up.Weapon == WeaponKind.Pistol, "Queued undo restores previous weapon");
-undo.EnqueueCommand(new ReloadCommand(undo, up.Id));
+undo.EnqueueCommand(new ReloadCommand(up.Id));
 undo.Update(dt, empty);
 for (int i = 0; i < 80; i++) undo.Update(dt, empty);
 Check(!undo.UndoLast(up.Id) && up.PistolAmmo == 12, "Completed reload cannot be undone");
-undo.EnqueueCommand(new SelectWeaponCommand(undo, up.Id, WeaponKind.Shotgun));
+undo.EnqueueCommand(new SelectWeaponCommand(up.Id, WeaponKind.Shotgun));
 undo.Update(dt, new Dictionary<int, PlayerInput> { [up.Id] = new(Vector2.Zero, Vector2.UnitX, true) });
 Check(!undo.UndoLast(up.Id), "Undo rejected after firing changes state");
 var textOutput = new List<string>();
@@ -291,7 +371,7 @@ Check(subject.Wave == 1 && detached.Count == 0, "Detached observer receives no n
 
 var pelletSession = new GameSession();
 var pelletPlayer = pelletSession.Players[0];
-pelletPlayer.PistolGear = new WeaponStats(WeaponKind.Pistol, 20, 0.2f, 3, 12, 1.2f);
+pelletPlayer.PistolGear = new Weapon(WeaponKind.Pistol, 20, 0.2f, 3, 12, 1.2f);
 pelletSession.Update(dt, new Dictionary<int, PlayerInput> { [pelletPlayer.Id] = new(Vector2.Zero, Vector2.UnitX, true) });
 Check(pelletSession.Bullets.Count == 3, "Fire respects arbitrary weapon pellet count");
 foreach (var kind in new[] { ZombieKind.Runner, ZombieKind.Brute })
@@ -305,7 +385,7 @@ foreach (var kind in new[] { ZombieKind.Runner, ZombieKind.Brute })
     Check(rewards.Score == expected, $"{kind} score uses archetype reward");
 }
 facade.Session.Players[0].PistolAmmo = 1;
-facade.Queue(new ReloadCommand(facade.Session, facade.Session.Players[0].Id));
+facade.Queue(new ReloadCommand(facade.Session.Players[0].Id));
 facade.ClearInputs();
 facade.Tick(dt);
 Check(!facade.Session.Players[0].IsReloading, "Disconnect cleanup discards queued commands");
@@ -425,4 +505,23 @@ sealed class RecordingOutput(List<string> messages) : INotificationOutput
 sealed class RecordingObserver(List<GameEvent> events) : IGameObserver
 {
     public void OnGameEvent(GameEvent message) => events.Add(message);
+}
+
+sealed class RecordingWeapon(IWeapon inner, List<string> calls) : WeaponDecorator(inner)
+{
+    public override bool Shoot(Player player, EntityFactory factory, ICollection<Bullet> bullets, WeaponStats? stats)
+    {
+        calls.Add("Shoot");
+        return base.Shoot(player, factory, bullets, stats);
+    }
+    public override bool Reload(Player player, WeaponStats? stats)
+    {
+        calls.Add("Reload");
+        return base.Reload(player, stats);
+    }
+    public override bool AdvanceReload(Player player, float dt, WeaponStats? stats)
+    {
+        calls.Add("AdvanceReload");
+        return base.AdvanceReload(player, dt, stats);
+    }
 }

@@ -9,8 +9,8 @@ ZombieShooter_Core_GameSession "0..*" --> "1" ZombieShooter_Core_IGameMode : mod
 ZombieShooter_Core_GameSession "0..1" *-- "1" ZombieShooter_Core_EntityFactory
 ZombieShooter_Core_WeaponDecorator "0..*" --> "1" ZombieShooter_Core_IWeapon : Inner
 ZombieShooter_Core_Player "0..*" --> "2" ZombieShooter_Core_IWeapon : pistol / shotgun
-ZombieShooter_Core_Commands_PlayerCommand "0..*" --> "1" ZombieShooter_Core_GameSession : Receiver
-ZombieShooter_Core_Commands_UndoCommand "0..*" --> "1" ZombieShooter_Core_GameSession : receiver
+ZombieShooter_Core_Commands_PlayerCommand "0..*" --> "0..1" ZombieShooter_Core_GameSession : successful execution receiver
+ZombieShooter_Core_Commands_UndoCommand ..> ZombieShooter_Core_GameSession : execution parameter
 ZombieShooter_Core_GameFacade "0..1" *-- "1" ZombieShooter_Core_InputBuffer
 ZombieShooter_Core_GameFacade "0..1" *-- "1" ZombieShooter_Core_GameSession
 ZombieShooter_Core_Commands_CommandDispatcher "0..*" --> "1" ZombieShooter_Core_GameSession
@@ -54,3 +54,5 @@ ZombieShooter_Core_SessionSnapshot "0..*" --> "1..2" ZombieShooter_Core_PlayerSn
 ZombieShooter_Core_SessionSnapshot "0..*" --> "0..*" ZombieShooter_Core_SequencedEvent
 ZombieShooter_Core_SessionSnapshot "0..*" --> "0..*" ZombieShooter_Core_ZombieSnapshot
 ZombieShooter_ZombieShooterGame "0..*" --> "1" ZombieShooter_Core_GameSession
+ZombieShooter_Core_Weapon ..> ZombieShooter_Core_EntityFactory : creates bullets via factory
+ZombieShooter_Core_GameSession ..> ZombieShooter_Core_IWeapon : Shoot / Reload / AdvanceReload

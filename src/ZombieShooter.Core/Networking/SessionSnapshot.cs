@@ -42,7 +42,7 @@ public sealed partial class GameSession
             _players.Add(new Player(p.Id, new(p.X, p.Y)) { Aim = new(p.AimX, p.AimY), Health = p.Health,
                 Weapon = p.Weapon, WeaponTime = p.WeaponTime, PistolAmmo = p.PistolAmmo,
                 ShotgunAmmo = p.ShotgunAmmo, ReloadRemaining = p.ReloadRemaining,
-                PistolGear = p.Pistol, ShotgunGear = p.Shotgun });
+                PistolGear = p.Pistol.ToWeapon(), ShotgunGear = p.Shotgun.ToWeapon() });
         _zombies.Clear();
         foreach (var z in snapshot.Zombies)
             _zombies.Add(new Zombie(z.Id, new(z.X, z.Y), new ZombieArchetype { Kind = z.Kind,

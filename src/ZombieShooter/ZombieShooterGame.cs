@@ -115,22 +115,22 @@ public sealed class ZombieShooterGame : Game, INotificationOutput, IGameObserver
         if (IsActive && !_paused)
         {
             var p1 = _network is null ? _session.Players[0] : _session.Players.Single(p => p.Id == _network.PlayerId);
-            if (Pressed(Keys.E)) Queue(new ReloadCommand(_session, p1.Id));
-            if (Pressed(Keys.D1)) Queue(new SelectWeaponCommand(_session, p1.Id, WeaponKind.Pistol));
-            if (Pressed(Keys.D2)) Queue(new SelectWeaponCommand(_session, p1.Id, WeaponKind.Shotgun));
-            if (Pressed(Keys.Z)) Queue(new UndoCommand(_session, p1.Id));
+            if (Pressed(Keys.E)) Queue(new ReloadCommand(p1.Id));
+            if (Pressed(Keys.D1)) Queue(new SelectWeaponCommand(p1.Id, WeaponKind.Pistol));
+            if (Pressed(Keys.D2)) Queue(new SelectWeaponCommand(p1.Id, WeaponKind.Shotgun));
+            if (Pressed(Keys.Z)) Queue(new UndoCommand(p1.Id));
             var input1 = _keyboardInput.Read(p1.Position);
             if (_network is null) _facade.SetInput(p1.Id, input1);
             else _network.SetInput(input1);
             if (_playerCount == 2 && _network is null)
             {
                 var p2 = _session.Players[1];
-                if (Pressed(Keys.N)) Queue(new UndoCommand(_session, p2.Id));
-                if (Pressed(Keys.O) || PadPressed(Buttons.X)) Queue(new ReloadCommand(_session, p2.Id));
+                if (Pressed(Keys.N)) Queue(new UndoCommand(p2.Id));
+                if (Pressed(Keys.O) || PadPressed(Buttons.X)) Queue(new ReloadCommand(p2.Id));
                 if (Pressed(Keys.D9) || PadPressed(Buttons.LeftShoulder))
-                    Queue(new SelectWeaponCommand(_session, p2.Id, WeaponKind.Pistol));
+                    Queue(new SelectWeaponCommand(p2.Id, WeaponKind.Pistol));
                 if (Pressed(Keys.D0) || PadPressed(Buttons.RightShoulder))
-                    Queue(new SelectWeaponCommand(_session, p2.Id, WeaponKind.Shotgun));
+                    Queue(new SelectWeaponCommand(p2.Id, WeaponKind.Shotgun));
                 var move = new NVector2(Axis(keys, Keys.Left, Keys.Right), Axis(keys, Keys.Up, Keys.Down));
                 var aim = new NVector2(Axis(keys, Keys.J, Keys.L), Axis(keys, Keys.I, Keys.K));
                 bool fire = keys.IsKeyDown(Keys.RightControl) || keys.IsKeyDown(Keys.Enter);

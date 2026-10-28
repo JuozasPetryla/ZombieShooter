@@ -1,0 +1,75 @@
+@startuml
+title Observer — local game wave completion
+skinparam backgroundColor #FFFFFF
+hide footbox
+autonumber
+
+participant "host : ZombieShooterGame\nConcreteObserver / INotificationOutput" as Host
+participant "facade : GameFacade\nConcreteObserver" as Facade
+participant "session : GameSession\nSubject / IGameSubject" as Session
+participant "notice : WaveNotification" as Notice
+
+== Subscription during local session setup ==
+Host -> Facade: CreatePreset(preset, players, seed)
+activate Facade
+Facade -> Session: new GameSession(players, seed, mode)
+Facade -> Session: Attach(this)
+Facade --> Host: facade
+deactivate Facade
+Host -> Session: Attach(this)
+note over Facade, Session
+  Attach ignores duplicate subscriptions.
+  Facade subscribes before the desktop host.
+end note
+
+== Tick that clears the wave ==
+Host -> Facade: Tick(dt)
+activate Facade
+Facade -> Session: Update(dt, _inputs.Values)
+activate Session
+note right of Session
+  After combat updates:
+  at least one player is alive,
+  State == Active and EnemiesRemaining == 0.
+  Other tick events are omitted.
+end note
+Session -> Session: State = Intermission\nSet IntermissionRemaining\nUpgradeWeapons(each surviving player)
+
+loop WaveCleared, then WeaponsUpgraded
+  Session -> Session: Notify(new GameEvent(eventName, Value: Wave))
+  note right of Session
+    Notify iterates _observers.ToArray()
+    synchronously in subscription order.
+  end note
+  Session -> Facade: OnGameEvent(message)
+  activate Facade
+  Facade -> Facade: Enqueue(new SequencedEvent(++_eventSequence, message))\nTrim event queue to 128 entries
+  Facade --> Session
+  deactivate Facade
+  Session -> Host: OnGameEvent(message)
+  activate Host
+  Host -> Notice: Show(message)
+  activate Notice
+  Notice -> Host: INotificationOutput.Write(text)
+  Host -> Host: _notice = text\n_noticeTime = 2
+  Host --> Notice
+  Notice --> Host
+  deactivate Notice
+  Host --> Session
+  deactivate Host
+end
+
+Session -> Session: Revive fallen co-op players, if any
+Session --> Facade
+deactivate Session
+Facade --> Host
+deactivate Facade
+
+note over Host, Notice
+  WaveCleared displays "WAVE CLEARED"; WeaponsUpgraded immediately
+  replaces it with "WEAPONS UPGRADED" in the same tick.
+  On restart, the host calls Detach(this) on the old session before setup.
+  GameServer is the alternative host for a server session:
+  the same notification flow writes to the console instead of the HUD.
+end note
+@enduml

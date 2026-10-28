@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render the complete class diagram with an opaque background in all SVG viewers."""
+"""Render a PlantUML diagram with an opaque background in all SVG viewers."""
 import argparse
 import os
 from pathlib import Path
@@ -8,9 +8,10 @@ import subprocess
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--jar", type=Path, help="PlantUML jar; otherwise use plantuml on PATH")
+parser.add_argument("source", nargs="?", type=Path, help="PlantUML source; defaults to the class diagram")
 args = parser.parse_args()
 root = Path(__file__).resolve().parents[1]
-source = root / "docs/uml/01-current-classes.puml"
+source = args.source.resolve() if args.source else root / "docs/uml/01-current-classes.puml"
 command = ["java", "-Djava.awt.headless=true", "-jar", str(args.jar.resolve())] if args.jar else ["plantuml"]
 environment = dict(os.environ, PLANTUML_LIMIT_SIZE="40000")
 environment["JAVA_TOOL_OPTIONS"] = environment.get("JAVA_TOOL_OPTIONS", "") + " -Djava.awt.headless=true"

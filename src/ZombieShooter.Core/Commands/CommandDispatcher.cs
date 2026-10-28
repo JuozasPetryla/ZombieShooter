@@ -14,21 +14,21 @@ public sealed class CommandDispatcher(GameSession session)
         return true;
     }
 
-    internal void ExecutePending()
+    public void ExecutePending()
     {
         int count = _pending.Count;
         for (int i = 0; i < count; i++)
         {
             var command = _pending.Dequeue();
-            if (command.Execute() && command is not UndoCommand)
+            if (command.Execute(session) && command is not UndoCommand)
                 _last[command.PlayerId] = command;
         }
     }
 
-    internal bool UndoLast(int playerId) =>
-        _last.Remove(playerId, out var command) && command.Undo();
+    public bool UndoLast(int playerId) =>
+        _last.Remove(playerId, out var command) && command.Undo(session);
 
-    internal void Clear()
+    public void Clear()
     {
         _pending.Clear();
         _last.Clear();

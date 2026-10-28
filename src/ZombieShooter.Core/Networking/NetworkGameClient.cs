@@ -44,7 +44,7 @@ public sealed class NetworkGameClient : IDisposable
             return true;
         }
     }
-    private async Task ExchangeAsync()
+    public async Task ExchangeAsync()
     {
         try
         {

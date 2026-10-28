@@ -73,12 +73,19 @@ only by wave Strategy (`NormalMode`, `HordeMode`, `BruteMode`), and
 The desktop game and server also implement `INotificationOutput`: the same hosts
 are Facade clients, Observer subscribers, and the two Bridge output implementations.
 `WeaponStats` supplies immutable pistol/shotgun defaults and snapshot weapon data;
-the three Decorator classes still wrap `IWeapon`. These shared roles keep both Bridge implementations and all three decorators
-without separate output or weapon classes.
+`IWeapon` is the common contract for `Weapon` and `WeaponDecorator`.
+The three bonuses wrap `IWeapon`; operations delegate through every layer.
+`Shoot(player, factory, bullets)` and `Reload(player)` receive context explicitly;
+additional overloads carry effective stats through the chain so no bonus is lost.
+Player retains ammo and timers. Commands receive the session in `Execute(session)`
+and `Undo(session)`; undo is restricted to the session of successful execution.
+[Diagram alignment notes](docs/DIAGRAM_ALIGNMENT.md) describe necessary corrections
+to the supplied full diagram and the retained runtime details.
 
 [Current class diagram](docs/uml/01-current-classes.svg)
 ([PlantUML](docs/uml/01-current-classes.puml)) ·
 [Use cases](docs/uml/00-use-cases.puml) ·
+[Observer sequence (PlantUML)](docs/uml/02-observer-sequence.puml) ·
 [Prototype experiment](docs/PROTOTYPE_REPORT.md)
 
 The class diagram includes all source-declared types under `src/`, with fields,

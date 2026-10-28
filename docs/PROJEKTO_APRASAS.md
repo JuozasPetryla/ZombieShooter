@@ -73,8 +73,8 @@ gali atlikti kelių šablonų vaidmenis; dalyviai skaičiuojami kiekvienam šabl
 | Observer | Subject → IGameSubject / GameSession (`Attach`, `Detach`, `Notify`); Observer → IGameObserver (`OnGameEvent` = update); ConcreteObserver → ZombieShooterGame, GameServer, GameFacade | 3 prenumeratoriai, atjungimo patikra ir sekų diagrama |
 | Builder | Director → ZombieDirector; Builder / ConcreteBuilder → ZombieBuilder (`Reset()`, grandininiai žingsniai ir `Build()` su tikrinimu); Product → ZombieArchetype | 1 builderis; direktorius saugo 3 receptus (Walker, Runner, Brute) |
 | Prototype | Prototype → IPrototype; ConcretePrototype → ZombieArchetype, AttackProfile; Client → EntityFactory saugo ir klonuoja šablonus | Deep / shallow kopijos, nuorodos, adresai ir sąnaudos |
-| Decorator | Component → IWeapon; ConcreteComponent → WeaponStats; Decorator → WeaponDecorator; ConcreteDecorator → DamageBonus, FireRateBonus, MagazineSizeBonus | 3 vienu metu taikomi sluoksniai |
-| Command | Command → IGameCommand (`Execute()`, `Undo()`); ConcreteCommand → ReloadCommand, SelectWeaponCommand, UndoCommand (receiver ir būsena); Receiver → GameSession; Invoker → CommandDispatcher; Client → ZombieShooterGame, GameServer | Būseną išsaugantis ir galiojimą tikrinantis Undo |
+| Decorator | Component → IWeapon; ConcreteComponent → Weapon; Decorator → WeaponDecorator; ConcreteDecorator → DamageBonus, FireRateBonus, MagazineSizeBonus | 3 vienu metu taikomi sluoksniai |
+| Command | Command → IGameCommand (`Execute(session)`, `Undo(session)`); ConcreteCommand → ReloadCommand, SelectWeaponCommand, UndoCommand (receiver ir būsena); Receiver → GameSession; Invoker → CommandDispatcher; Client → ZombieShooterGame, GameServer | Būseną išsaugantis ir galiojimą tikrinantis Undo |
 | Adapter | Target → IPlayerInputSource; Adapter → KeyboardMouseAdapter, ControllerAdapter; Adaptee → KeyboardMouseDevice, ControllerDevice (object adapter) | 2 adapteriai; vienas Read sujungia 3 įrenginio operacijas |
 | Facade | Facade → GameFacade; posistemės → InputBuffer, CommandDispatcher, GameSession | 3 posistemės; desktop ir serveris – 2 klientai |
 | Bridge | Abstraction → GameNotification; RefinedAbstraction → WaveNotification, PickupNotification; Implementor → INotificationOutput; ConcreteImplementor → ZombieShooterGame, GameServer | 2 abstrakcijos ir 2 realizacijos |
@@ -93,10 +93,21 @@ Horde ir Brute keičia tik `IGameMode` strategiją. Strategija parenkama sesijos
 prenumeratoriai ir dvi Bridge išvesties realizacijos (`INotificationOutput`).
 `GameFacade` taip pat prenumeruoja sesiją ir kaupia sunumeruotą įvykių žurnalą snapshot'ams.
 
-Kiekviena komanda kaip GoF ConcreteCommand konstruktoriuje gauna savo receiver
-(`GameSession`), o `Execute()` ir `Undo()` neturi parametrų. Invoker (`CommandDispatcher`)
-komandų vidaus nežino, tik jas kviečia ir saugo istoriją.
-`WeaponStats` yra nekintamas Decorator komponentas ir snapshot ginklo duomenys.
+Komandos konstruktoriuje gauna žaidėjo ID ir konkrečiai komandai reikalingus
+parametrus. Invoker perduoda savo sesiją į `Execute(session)` bei `Undo(session)`.
+`PlayerCommand` prisimena sėkmingo vykdymo sesiją ir būsenos versiją, todėl komandos
+negalima atšaukti kitoje sesijoje net sutapus žaidėjų ID.
+
+`IWeapon` realizuoja `Weapon` ir `WeaponDecorator`. Dekoratorius saugo `IWeapon`,
+kad būtų galima uždėti kelis sluoksnius. `Shoot(player, factory, bullets)` ir
+`Reload(player)` deleguojami vidiniam objektui. Papildomos metodų perkrovos perduoda
+bendrus `WeaponStats`, kad visų dekoratorių priedai pasiektų konkretų ginklą.
+`AdvanceReload` užbaigia perkrovimą. `Player` saugo šovinius ir laikmačius,
+`GameSession.Fire` koordinuoja šūvį ir siunčia įvykį. `IGameSubject.Notify`
+realizuojamas eksplicitiškai ir kviečia privatų sesijos `Notify`.
+
+[Pilnos diagramos atitikimo pastabos](DIAGRAM_ALIGNMENT.md) išvardija tipų pataisas
+ir veikimui paliktus papildymus.
 
 Jeigu taikomas reikalavimas „bent 3 nesikartojantys šablonai studentui“, tikrieji
 autoriai turi įrašyti savo atsakomybes. Šis dokumentas autorystės nepatvirtina.
@@ -120,6 +131,9 @@ ir enum savybių priklausomybės rodyklėmis nekartojamos: tipai lieka narių pa
 Use Case `include` reiškia, kad F2/F3 visada pradeda naują sesiją.
 
 Observer bangos pabaigos eiga (įvykis sinchroninis):
+
+[PlantUML versija](uml/02-observer-sequence.puml) papildomai rodo prenumeratų
+registravimą ir po `WaveCleared` siunčiamą `WeaponsUpgraded` įvykį.
 
 ```mermaid
 sequenceDiagram
