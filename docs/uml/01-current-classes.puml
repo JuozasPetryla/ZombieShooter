@@ -98,6 +98,20 @@ package "ZombieShooter" {
   }
 }
 package "ZombieShooter.Core" {
+  class "ArmoredBrute" as ZombieShooter_Core_ArmoredBrute <<sealed>> {
+    {method} +ArmoredBrute(int id, Vector2 position, ZombieArchetype archetype)
+  }
+  class "ArmoredRunner" as ZombieShooter_Core_ArmoredRunner <<sealed>> {
+    {method} +ArmoredRunner(int id, Vector2 position, ZombieArchetype archetype)
+  }
+  class "ArmoredWalker" as ZombieShooter_Core_ArmoredWalker <<sealed>> {
+    {method} +ArmoredWalker(int id, Vector2 position, ZombieArchetype archetype)
+  }
+  class "ArmoredZombieFactory" as ZombieShooter_Core_ArmoredZombieFactory <<sealed>> {
+    {method} +CreateWalker(int id, Vector2 position, ZombieArchetype archetype) : WalkerZombie
+    {method} +CreateRunner(int id, Vector2 position, ZombieArchetype archetype) : RunnerZombie
+    {method} +CreateBrute(int id, Vector2 position, ZombieArchetype archetype) : BruteZombie
+  }
   class "AttackProfile" as ZombieShooter_Core_AttackProfile <<sealed>> {
     {field} +Damage : int { get; set; }
     {field} +Cooldown : float { get; set; }
@@ -107,6 +121,7 @@ package "ZombieShooter.Core" {
     {method} +Brute(int id, Vector2 position, ZombieArchetype archetype) <<primary constructor>>
   }
   class "BruteCreator" as ZombieShooter_Core_BruteCreator <<sealed>> {
+    {method} +BruteCreator(IZombieFamilyFactory? family = null) <<primary constructor>>
     {method} +override Create(int id, Vector2 position, ZombieArchetype archetype) : Zombie
   }
   class "BruteMode" as ZombieShooter_Core_BruteMode <<sealed>> {
@@ -114,6 +129,9 @@ package "ZombieShooter.Core" {
     {method} +EnemyCount(int wave, int playerCount) : int
     {method} +SpawnInterval(int wave) : float
     {method} +ChooseZombie(int wave, Random random) : ZombieKind
+  }
+  abstract class "BruteZombie" as ZombieShooter_Core_BruteZombie {
+    {method} +BruteZombie(int id, Vector2 position, ZombieArchetype archetype) <<primary constructor>>
   }
   class "Bullet" as ZombieShooter_Core_Bullet <<sealed>> {
     {method} +Bullet(int id, Vector2 position, Vector2 velocity, int ownerId, int damage) <<primary constructor>>
@@ -144,10 +162,10 @@ package "ZombieShooter.Core" {
     {field} +Radius : float { get; }
   }
   class "EntityFactory" as ZombieShooter_Core_EntityFactory <<sealed>> {
-    {field} -{static} readonly ZombieCreators : IReadOnlyDictionary<ZombieKind, ZombieCreator>
+    {field} -readonly _zombieCreators : IReadOnlyDictionary<ZombieKind, ZombieCreator>
     {field} -_nextId : int
     {field} -readonly _templates : Dictionary<ZombieKind, ZombieArchetype>
-    {method} +EntityFactory()
+    {method} +EntityFactory(IZombieFamilyFactory? family = null)
     {method} +CreatePlayer(Vector2 position) : Player
     {method} +CreateZombie(Vector2 position, ZombieKind kind, int wave) : Zombie
     {method} +CreateBullet(Vector2 position, Vector2 direction, int ownerId, int damage) : Bullet
@@ -216,7 +234,7 @@ package "ZombieShooter.Core" {
     {method} +Detach(IGameObserver observer) : void
     {method} -IGameSubject.Notify(GameEvent message) : void
     {method} -Notify(GameEvent message) : void
-    {method} +GameSession(int playerCount = 1, int seed = 1, IGameMode? mode = null)
+    {method} +GameSession(int playerCount = 1, int seed = 1, IGameMode? mode = null, IZombieFamilyFactory? family = null)
     {method} +EnqueueCommand(IGameCommand command) : bool
     {method} +TryReload(int playerId) : bool
     {method} +TrySelectWeapon(int playerId, WeaponKind weapon) : bool
@@ -274,6 +292,11 @@ package "ZombieShooter.Core" {
     {method} +Shoot(Player player, EntityFactory factory, ICollection<Bullet> bullets, WeaponStats? stats) : bool
     {method} +Reload(Player player, WeaponStats? stats) : bool
     {method} +AdvanceReload(Player player, float dt, WeaponStats? stats) : bool
+  }
+  interface "IZombieFamilyFactory" as ZombieShooter_Core_IZombieFamilyFactory {
+    {method} +CreateWalker(int id, Vector2 position, ZombieArchetype archetype) : WalkerZombie
+    {method} +CreateRunner(int id, Vector2 position, ZombieArchetype archetype) : RunnerZombie
+    {method} +CreateBrute(int id, Vector2 position, ZombieArchetype archetype) : BruteZombie
   }
   class "InputBuffer" as ZombieShooter_Core_InputBuffer <<sealed>> {
     {field} -readonly _inputs : Dictionary<int, PlayerInput>
@@ -358,7 +381,11 @@ package "ZombieShooter.Core" {
     {method} +Runner(int id, Vector2 position, ZombieArchetype archetype) <<primary constructor>>
   }
   class "RunnerCreator" as ZombieShooter_Core_RunnerCreator <<sealed>> {
+    {method} +RunnerCreator(IZombieFamilyFactory? family = null) <<primary constructor>>
     {method} +override Create(int id, Vector2 position, ZombieArchetype archetype) : Zombie
+  }
+  abstract class "RunnerZombie" as ZombieShooter_Core_RunnerZombie {
+    {method} +RunnerZombie(int id, Vector2 position, ZombieArchetype archetype) <<primary constructor>>
   }
   class "SequencedEvent" as ZombieShooter_Core_SequencedEvent <<record, sealed>> {
     {method} +SequencedEvent(long Sequence, GameEvent Event) <<primary constructor>>
@@ -384,11 +411,20 @@ package "ZombieShooter.Core" {
     Active
     GameOver
   }
+  class "StandardZombieFactory" as ZombieShooter_Core_StandardZombieFactory <<sealed>> {
+    {method} +CreateWalker(int id, Vector2 position, ZombieArchetype archetype) : WalkerZombie
+    {method} +CreateRunner(int id, Vector2 position, ZombieArchetype archetype) : RunnerZombie
+    {method} +CreateBrute(int id, Vector2 position, ZombieArchetype archetype) : BruteZombie
+  }
   class "Walker" as ZombieShooter_Core_Walker <<sealed>> {
     {method} +Walker(int id, Vector2 position, ZombieArchetype archetype) <<primary constructor>>
   }
   class "WalkerCreator" as ZombieShooter_Core_WalkerCreator <<sealed>> {
+    {method} +WalkerCreator(IZombieFamilyFactory? family = null) <<primary constructor>>
     {method} +override Create(int id, Vector2 position, ZombieArchetype archetype) : Zombie
+  }
+  abstract class "WalkerZombie" as ZombieShooter_Core_WalkerZombie {
+    {method} +WalkerZombie(int id, Vector2 position, ZombieArchetype archetype) <<primary constructor>>
   }
   class "WaveNotification" as ZombieShooter_Core_WaveNotification <<sealed>> {
     {method} +WaveNotification(INotificationOutput output) <<primary constructor>>
@@ -478,6 +514,8 @@ package "ZombieShooter.Core" {
     {method} +Build() : ZombieArchetype
   }
   abstract class "ZombieCreator" as ZombieShooter_Core_ZombieCreator {
+    {method} +ZombieCreator(IZombieFamilyFactory? family = null) <<primary constructor>>
+    {field} #Family : IZombieFamilyFactory { get; }
     {method} +{abstract} Create(int id, Vector2 position, ZombieArchetype archetype) : Zombie
     {method} +Spawn(int id, Vector2 position, ZombieArchetype archetype, int wave) : Zombie
   }
@@ -624,11 +662,8 @@ package "External base types (members omitted)" {
   interface "IDisposable" as External_IDisposable <<external>>
 }
 ' Explicit ownership and behavioral relationships reviewed against the source.
-ZombieShooter_Core_WalkerCreator ..> ZombieShooter_Core_Walker : creates
-ZombieShooter_Core_RunnerCreator ..> ZombieShooter_Core_Runner : creates
-ZombieShooter_Core_BruteCreator ..> ZombieShooter_Core_Brute : creates
 ZombieShooter_Core_Zombie "0..*" --> "1" ZombieShooter_Core_AttackProfile : Attack
-ZombieShooter_Core_EntityFactory "0..*" --> "3" ZombieShooter_Core_ZombieCreator : static ZombieCreators
+ZombieShooter_Core_EntityFactory "0..*" --> "3" ZombieShooter_Core_ZombieCreator : _zombieCreators
 ZombieShooter_Core_ZombieBuilder ..> ZombieShooter_Core_ZombieArchetype : builds
 ZombieShooter_Core_GameSession "0..*" --> "1" ZombieShooter_Core_IGameMode : mode
 ZombieShooter_Core_GameSession "0..1" *-- "1" ZombieShooter_Core_EntityFactory
@@ -681,10 +716,19 @@ ZombieShooter_Core_SessionSnapshot "0..*" --> "0..*" ZombieShooter_Core_ZombieSn
 ZombieShooter_ZombieShooterGame "0..*" --> "1" ZombieShooter_Core_GameSession
 ZombieShooter_Core_Weapon ..> ZombieShooter_Core_EntityFactory : creates bullets via factory
 ZombieShooter_Core_GameSession ..> ZombieShooter_Core_IWeapon : Shoot / Reload / AdvanceReload
+ZombieShooter_Core_ZombieCreator "0..*" --> "1" ZombieShooter_Core_IZombieFamilyFactory : Family
+ZombieShooter_Core_StandardZombieFactory ..> ZombieShooter_Core_Walker : creates
+ZombieShooter_Core_StandardZombieFactory ..> ZombieShooter_Core_Runner : creates
+ZombieShooter_Core_StandardZombieFactory ..> ZombieShooter_Core_Brute : creates
+ZombieShooter_Core_ArmoredZombieFactory ..> ZombieShooter_Core_ArmoredWalker : creates
+ZombieShooter_Core_ArmoredZombieFactory ..> ZombieShooter_Core_ArmoredRunner : creates
+ZombieShooter_Core_ArmoredZombieFactory ..> ZombieShooter_Core_ArmoredBrute : creates
 
 External_Game <|-- ZombieShooter_ZombieShooterGame
 External_IAsyncDisposable <|.. ZombieShooter_Core_Networking_GameServer
 External_IDisposable <|.. ZombieShooter_Core_Networking_NetworkGameClient
+ZombieShooter_Core_BruteZombie <|-- ZombieShooter_Core_ArmoredBrute
+ZombieShooter_Core_BruteZombie <|-- ZombieShooter_Core_Brute
 ZombieShooter_Core_Commands_IGameCommand <|.. ZombieShooter_Core_Commands_PlayerCommand
 ZombieShooter_Core_Commands_IGameCommand <|.. ZombieShooter_Core_Commands_UndoCommand
 ZombieShooter_Core_Commands_PlayerCommand <|-- ZombieShooter_Core_Commands_ReloadCommand
@@ -708,12 +752,18 @@ ZombieShooter_Core_IPrototype <|.. ZombieShooter_Core_AttackProfile : IPrototype
 ZombieShooter_Core_IPrototype <|.. ZombieShooter_Core_ZombieArchetype : IPrototype<ZombieArchetype>
 ZombieShooter_Core_IWeapon <|.. ZombieShooter_Core_Weapon
 ZombieShooter_Core_IWeapon <|.. ZombieShooter_Core_WeaponDecorator
+ZombieShooter_Core_IZombieFamilyFactory <|.. ZombieShooter_Core_ArmoredZombieFactory
+ZombieShooter_Core_IZombieFamilyFactory <|.. ZombieShooter_Core_StandardZombieFactory
+ZombieShooter_Core_RunnerZombie <|-- ZombieShooter_Core_ArmoredRunner
+ZombieShooter_Core_RunnerZombie <|-- ZombieShooter_Core_Runner
+ZombieShooter_Core_WalkerZombie <|-- ZombieShooter_Core_ArmoredWalker
+ZombieShooter_Core_WalkerZombie <|-- ZombieShooter_Core_Walker
 ZombieShooter_Core_WeaponDecorator <|-- ZombieShooter_Core_DamageBonus
 ZombieShooter_Core_WeaponDecorator <|-- ZombieShooter_Core_FireRateBonus
 ZombieShooter_Core_WeaponDecorator <|-- ZombieShooter_Core_MagazineSizeBonus
-ZombieShooter_Core_Zombie <|-- ZombieShooter_Core_Brute
-ZombieShooter_Core_Zombie <|-- ZombieShooter_Core_Runner
-ZombieShooter_Core_Zombie <|-- ZombieShooter_Core_Walker
+ZombieShooter_Core_Zombie <|-- ZombieShooter_Core_BruteZombie
+ZombieShooter_Core_Zombie <|-- ZombieShooter_Core_RunnerZombie
+ZombieShooter_Core_Zombie <|-- ZombieShooter_Core_WalkerZombie
 ZombieShooter_Core_ZombieCreator <|-- ZombieShooter_Core_BruteCreator
 ZombieShooter_Core_ZombieCreator <|-- ZombieShooter_Core_RunnerCreator
 ZombieShooter_Core_ZombieCreator <|-- ZombieShooter_Core_WalkerCreator

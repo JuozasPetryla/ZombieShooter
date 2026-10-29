@@ -70,6 +70,18 @@ resulting archetypes are Prototype templates cloned on each spawn. Modes differ
 only by wave Strategy (`NormalMode`, `HordeMode`, `BruteMode`), and
 `GameFacade.CreatePreset` exposes Normal, Horde and Brute to desktop and server.
 
+`IZombieFamilyFactory` follows the Abstract Factory structure on slide 44:
+`StandardZombieFactory` and `ArmoredZombieFactory` each create three product types
+(`WalkerZombie`, `RunnerZombie`, `BruteZombie`). The standard concrete products
+remain `Walker`, `Runner`, and `Brute`; the armored family adds 30 health per zombie.
+The existing Factory Method creators delegate construction to the selected family;
+Builder recipes, Prototype cloning, and wave scaling remain in the spawn path.
+All existing presets use the standard family. To select the other family in code:
+
+```csharp
+var session = new GameSession(family: new ArmoredZombieFactory());
+```
+
 The desktop game and server also implement `INotificationOutput`: the same hosts
 are Facade clients, Observer subscribers, and the two Bridge output implementations.
 `WeaponStats` supplies immutable pistol/shotgun defaults and snapshot weapon data;

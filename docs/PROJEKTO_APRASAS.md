@@ -69,6 +69,7 @@ gali atlikti kelių šablonų vaidmenis; dalyviai skaičiuojami kiekvienam šabl
 |---|---|---|
 | Singleton | Singleton → HighScores: privatus konstruktorius, `static Instance`, Lazy holder (SingletonHolder variantas) ir Interlocked maksimumas | Viena instancija; 10 000 lygiagrečių atnaujinimų patikra |
 | Factory Method | Creator → ZombieCreator (`Spawn()` = AnOperation, kviečia `Create()`); ConcreteCreator → WalkerCreator, RunnerCreator, BruteCreator; Product → Zombie; ConcreteProduct → Walker, Runner, Brute | 3 konkretūs kūrėjai ir 3 produktų klasės |
+| Abstract Factory | AbstractFactory → IZombieFamilyFactory; ConcreteFactory → StandardZombieFactory, ArmoredZombieFactory; AbstractProduct → WalkerZombie, RunnerZombie, BruteZombie; ConcreteProduct → Walker, Runner, Brute ir ArmoredWalker, ArmoredRunner, ArmoredBrute | 2 gamyklos, po 3 produktus šeimoje (44 skaidrės GoF struktūra) |
 | Strategy | Strategy → IGameMode; ConcreteStrategy → NormalMode, HordeMode, BruteMode; Context → GameSession | 3 pasirenkamos strategijos |
 | Observer | Subject → IGameSubject / GameSession (`Attach`, `Detach`, `Notify`); Observer → IGameObserver (`OnGameEvent` = update); ConcreteObserver → ZombieShooterGame, GameServer, GameFacade | 3 prenumeratoriai, atjungimo patikra ir sekų diagrama |
 | Builder | Director → ZombieDirector; Builder / ConcreteBuilder → ZombieBuilder (`Reset()`, grandininiai žingsniai ir `Build()` su tikrinimu); Product → ZombieArchetype | 1 builderis; direktorius saugo 3 receptus (Walker, Runner, Brute) |
@@ -84,6 +85,12 @@ KAIP pagaminti dalį, o Director – KOKIA TVARKA kviesti žingsnius (`Reset()` 
 → … → `Build()`); taip sukuriama po vieną archetipą kiekvienai zombio rūšiai. Tie
 archetipai yra Prototype šablonai: kiekvienas atsiradimas juos klonuoja ir perduoda
 Factory Method kūrėjui, kurio `Spawn()` pritaiko bangos priedus ir kviečia `Create()`.
+`Create()` deleguoja pasirinktam `IZombieFamilyFactory`: standartinė gamykla kuria
+esamus Walker, Runner ir Brute, o šarvuota – tris atitinkamus Armored produktus
+su 30 papildomų gyvybių. Abstrakčios produktų bazės paveldi `Zombie` elgseną.
+`GameSession` priima neprivalomą `family` parametrą; numatytoji šeima ir visų
+esamų režimų elgsena lieka standartinė. Builder, Prototype ir Factory Method
+lieka toje pačioje kūrimo grandinėje.
 
 Horde ir Brute keičia tik `IGameMode` strategiją. Strategija parenkama sesijos pradžioje
 (F3 arba serverio argumentu), nes režimo pakeitimas pradeda naują sesiją.

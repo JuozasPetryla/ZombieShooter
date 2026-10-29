@@ -67,19 +67,20 @@ public sealed class Pickup(int id, Vector2 position, PickupKind kind) : Entity(i
 // Factory centralizes identities and construction; it belongs to one session.
 public sealed class EntityFactory
 {
-    private static readonly IReadOnlyDictionary<ZombieKind, ZombieCreator> ZombieCreators =
-        new Dictionary<ZombieKind, ZombieCreator>
-        {
-            [ZombieKind.Walker] = new WalkerCreator(),
-            [ZombieKind.Runner] = new RunnerCreator(),
-            [ZombieKind.Brute] = new BruteCreator()
-        };
+    private readonly IReadOnlyDictionary<ZombieKind, ZombieCreator> _zombieCreators;
     private int _nextId;
     private readonly Dictionary<ZombieKind, ZombieArchetype> _templates = new();
 
     // The builder makes one prototype per kind; spawns clone it.
-    public EntityFactory()
+    public EntityFactory(IZombieFamilyFactory? family = null)
     {
+        family ??= new StandardZombieFactory();
+        _zombieCreators = new Dictionary<ZombieKind, ZombieCreator>
+        {
+            [ZombieKind.Walker] = new WalkerCreator(family),
+            [ZombieKind.Runner] = new RunnerCreator(family),
+            [ZombieKind.Brute] = new BruteCreator(family)
+        };
         var director = new ZombieDirector(new ZombieBuilder());
         foreach (var kind in Enum.GetValues<ZombieKind>())
             _templates[kind] = director.Construct(kind);
@@ -88,7 +89,7 @@ public sealed class EntityFactory
     public Player CreatePlayer(Vector2 position) => new(++_nextId, position);
 
     public Zombie CreateZombie(Vector2 position, ZombieKind kind, int wave) =>
-        ZombieCreators[kind].Spawn(++_nextId, position, _templates[kind].Clone(), wave);
+        _zombieCreators[kind].Spawn(++_nextId, position, _templates[kind].Clone(), wave);
 
     public Bullet CreateBullet(Vector2 position, Vector2 direction, int ownerId, int damage)
         => new(++_nextId, position, direction * 650, ownerId, damage);

@@ -44,11 +44,11 @@ public sealed partial class GameSession : IGameSubject
         foreach (var observer in _observers.ToArray()) observer.OnGameEvent(message);
     }
 
-    public GameSession(int playerCount = 1, int seed = 1, IGameMode? mode = null)
+    public GameSession(int playerCount = 1, int seed = 1, IGameMode? mode = null, IZombieFamilyFactory? family = null)
     {
         if (playerCount is < 1 or > 2) throw new ArgumentOutOfRangeException(nameof(playerCount));
         Commands = new CommandDispatcher(this);
-        _factory = new EntityFactory();
+        _factory = new EntityFactory(family);
         _mode = mode ?? new NormalMode();
         _random = new Random(seed);
         for (int i = 0; i < playerCount; i++)

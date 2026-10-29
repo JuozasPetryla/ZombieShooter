@@ -1,9 +1,6 @@
 ' Explicit ownership and behavioral relationships reviewed against the source.
-ZombieShooter_Core_WalkerCreator ..> ZombieShooter_Core_Walker : creates
-ZombieShooter_Core_RunnerCreator ..> ZombieShooter_Core_Runner : creates
-ZombieShooter_Core_BruteCreator ..> ZombieShooter_Core_Brute : creates
 ZombieShooter_Core_Zombie "0..*" --> "1" ZombieShooter_Core_AttackProfile : Attack
-ZombieShooter_Core_EntityFactory "0..*" --> "3" ZombieShooter_Core_ZombieCreator : static ZombieCreators
+ZombieShooter_Core_EntityFactory "0..*" --> "3" ZombieShooter_Core_ZombieCreator : _zombieCreators
 ZombieShooter_Core_ZombieBuilder ..> ZombieShooter_Core_ZombieArchetype : builds
 ZombieShooter_Core_GameSession "0..*" --> "1" ZombieShooter_Core_IGameMode : mode
 ZombieShooter_Core_GameSession "0..1" *-- "1" ZombieShooter_Core_EntityFactory
@@ -56,3 +53,10 @@ ZombieShooter_Core_SessionSnapshot "0..*" --> "0..*" ZombieShooter_Core_ZombieSn
 ZombieShooter_ZombieShooterGame "0..*" --> "1" ZombieShooter_Core_GameSession
 ZombieShooter_Core_Weapon ..> ZombieShooter_Core_EntityFactory : creates bullets via factory
 ZombieShooter_Core_GameSession ..> ZombieShooter_Core_IWeapon : Shoot / Reload / AdvanceReload
+ZombieShooter_Core_ZombieCreator "0..*" --> "1" ZombieShooter_Core_IZombieFamilyFactory : Family
+ZombieShooter_Core_StandardZombieFactory ..> ZombieShooter_Core_Walker : creates
+ZombieShooter_Core_StandardZombieFactory ..> ZombieShooter_Core_Runner : creates
+ZombieShooter_Core_StandardZombieFactory ..> ZombieShooter_Core_Brute : creates
+ZombieShooter_Core_ArmoredZombieFactory ..> ZombieShooter_Core_ArmoredWalker : creates
+ZombieShooter_Core_ArmoredZombieFactory ..> ZombieShooter_Core_ArmoredRunner : creates
+ZombieShooter_Core_ArmoredZombieFactory ..> ZombieShooter_Core_ArmoredBrute : creates

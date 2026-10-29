@@ -152,6 +152,39 @@ Check(factory.CreateZombie(Vector2.Zero, ZombieKind.Walker, 1) is Walker &&
     factory.CreateZombie(Vector2.Zero, ZombieKind.Runner, 1) is Runner &&
     factory.CreateZombie(Vector2.Zero, ZombieKind.Brute, 1) is Brute,
     "Factory Method produces three concrete product classes");
+// Both families must supply all three products through the existing spawn pipeline.
+IZombieFamilyFactory standardFamily = new StandardZombieFactory();
+IZombieFamilyFactory armoredFamily = new ArmoredZombieFactory();
+var recipe = new ZombieDirector(new ZombieBuilder());
+Check(standardFamily.CreateWalker(1, Vector2.Zero, recipe.Construct(ZombieKind.Walker)) is Walker &&
+    standardFamily.CreateRunner(2, Vector2.Zero, recipe.Construct(ZombieKind.Runner)) is Runner &&
+    standardFamily.CreateBrute(3, Vector2.Zero, recipe.Construct(ZombieKind.Brute)) is Brute &&
+    armoredFamily.CreateWalker(1, Vector2.Zero, recipe.Construct(ZombieKind.Walker)) is ArmoredWalker &&
+    armoredFamily.CreateRunner(2, Vector2.Zero, recipe.Construct(ZombieKind.Runner)) is ArmoredRunner &&
+    armoredFamily.CreateBrute(3, Vector2.Zero, recipe.Construct(ZombieKind.Brute)) is ArmoredBrute,
+    "Abstract Factory supplies two complete families of three product types");
+var armoredEntities = new EntityFactory(armoredFamily);
+foreach (var kind in Enum.GetValues<ZombieKind>())
+{
+    var regular = factory.CreateZombie(Vector2.One, kind, 3);
+    var armored = armoredEntities.CreateZombie(Vector2.One, kind, 3);
+    Check(armored.Kind == regular.Kind && armored.Health == regular.Health + 30 &&
+        armored.Speed == regular.Speed && armored.Radius == regular.Radius &&
+        armored.Attack.Damage == regular.Attack.Damage && armored.XpReward == regular.XpReward,
+        $"{kind} family selection preserves Builder recipes and Factory Method wave scaling");
+    armored.Attack.Damage = 999;
+    var next = armoredEntities.CreateZombie(Vector2.Zero, kind, 1);
+    Check(next.Health == recipe.Construct(kind).Health + 30 && next.Attack.Damage == regular.Attack.Damage,
+        $"{kind} armored spawn preserves Prototype isolation");
+    var armoredSession = new GameSession(mode: new TestMode(kind), family: armoredFamily);
+    armoredSession.Update(dt, empty);
+    Check(armoredSession.Zombies.Single().GetType() == armored.GetType(),
+        $"Session uses the selected family for {kind}");
+    var armoredReplica = new GameSession();
+    armoredReplica.ApplySnapshot(armoredSession.CaptureSnapshot());
+    Check(armoredReplica.Zombies.Single().Health == armoredSession.Zombies.Single().Health &&
+        armoredReplica.Zombies.Single().Kind == kind, $"{kind} family combat data survives snapshots");
+}
 var scaled = new RunnerCreator().Spawn(1, Vector2.Zero, new ZombieDirector(new ZombieBuilder()).Construct(ZombieKind.Runner), 3);
 Check(scaled is Runner && scaled.Health == 45 && scaled.Speed == 129,
     "Factory Method operation scales the archetype and lets the subclass pick the product");
